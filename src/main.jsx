@@ -1,0 +1,627 @@
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { createRoot } from 'react-dom/client';
+import { flushSync } from 'react-dom';
+import './styles.css';
+import { LocaleContext, useLocale, translator, languages, initialLanguage, localizedContent, navigationPages } from './i18n';
+import { paintings } from './data/paintings';
+import { responsiveImage } from './imageProps';
+import { exhibitions } from './data/exhibitions';
+
+function PaintingDetail({ selection, onClose }) {
+  const { language, t } = useLocale();
+  const content = localizedContent(selection.painting, language);
+  const dialog = useRef(null);
+  const image = useRef(null);
+  const artwork = useRef(null);
+  const background = useRef(null);
+  const animations = useRef([]);
+  const closing = useRef(false);
+  const mounted = useRef(false);
+  const [isClosing, setIsClosing] = useState(false);
+  const [currentImage, setCurrentImage] = useState(0);
+  const [cursorVisible, setCursorVisible] = useState(false);
+  const cursor = useRef(null);
+  const detailImages = [selection.painting.image, ...selection.painting.additionalImages];
+  const pointCursor = (event) => {
+    if (event.pointerType !== 'mouse') return;
+    setCursorVisible(true);
+    if (cursor.current) cursor.current.style.transform = `translate(${event.clientX}px, ${event.clientY}px) translate(-50%, -50%)`;
+  };
+  const chooseImage = (index) => {
+    if (closing.current) return;
+    setCurrentImage(index);
+    setCursorVisible(false);
+  };
+  const bounds = (rect) => ({ left: `${rect.left + rect.width / 2}px`, top: `${rect.top + rect.height / 2}px`, width: `${rect.width}px`, height: `${rect.height}px` });
+  const sourceRect = () => selection.source?.isConnected ? selection.source.getBoundingClientRect() : selection.rect;
+  const crop = (rect, zoom = 1) => {
+    const ratio = selection.ratio;
+    const width = Math.max(rect.width, rect.height * ratio);
+    const height = width / ratio;
+    const [x, y] = selection.painting.position.split(' ').map(value => parseFloat(value) / 100);
+    return {
+      left: `${(rect.width - width) * x - width * (zoom - 1) / 2}px`,
+      top: `${(rect.height - height) * y - height * (zoom - 1) / 2}px`,
+      width: `${width * zoom}px`, height: `${height * zoom}px`,
+    };
+  };
+  const fullImage = (rect) => ({ left: '0px', top: '0px', width: `${rect.width}px`, height: `${rect.height}px` });
+  useLayoutEffect(() => {
+    const modal = dialog.current;
+    mounted.current = true;
+    closing.current = false;
+    modal.showModal();
+    if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      const destination = artwork.current.getBoundingClientRect();
+      animations.current = [
+        artwork.current.animate([
+          bounds(sourceRect()),
+          bounds(destination),
+        ], { duration: 1100, easing: 'cubic-bezier(.22, 1, .36, 1)' }),
+        image.current.animate([crop(sourceRect(), selection.zoom), fullImage(destination)], { duration: 1100, easing: 'cubic-bezier(.22, 1, .36, 1)' }),
+        background.current.animate([
+          { transform: 'translateY(100%)' },
+          { transform: 'translateY(0)' },
+        ], { duration: 1400, easing: 'cubic-bezier(.22, 1, .36, 1)' }),
+      ];
+    }
+    return () => {
+      mounted.current = false;
+      animations.current.forEach(animation => animation.cancel());
+      modal.close();
+    };
+  }, [selection]);
+  const close = async () => {
+    if (closing.current) return;
+    closing.current = true;
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      onClose();
+      return;
+    }
+    flushSync(() => { setIsClosing(true); setCursorVisible(false); setCurrentImage(0); });
+    await image.current.decode().catch(() => {});
+    if (!mounted.current) return;
+    // Start from the current frame, including when opening is interrupted.
+    const currentBounds = bounds(artwork.current.getBoundingClientRect());
+    const currentImageStyle = getComputedStyle(image.current);
+    const currentImage = Object.fromEntries(['left', 'top', 'width', 'height'].map(key => [key, currentImageStyle[key]]));
+    const panelTransform = getComputedStyle(background.current).transform;
+    animations.current.forEach(animation => animation.cancel());
+    animations.current = [
+      artwork.current.animate([
+        currentBounds, bounds(sourceRect()),
+      ], { duration: 1100, easing: 'cubic-bezier(.65, 0, .35, 1)', fill: 'forwards' }),
+      image.current.animate([currentImage, crop(sourceRect())], { duration: 1100, easing: 'cubic-bezier(.65, 0, .35, 1)', fill: 'forwards' }),
+      background.current.animate([
+        { transform: panelTransform }, { transform: 'translateY(100%)' },
+      ], { duration: 1100, easing: 'cubic-bezier(.65, 0, .35, 1)', fill: 'forwards' }),
+    ];
+    Promise.all(animations.current.map(animation => animation.finished)).then(() => {
+      if (mounted.current) onClose();
+    }).catch(() => {});
+  };
+  return (
+    <dialog className={`painting-detail ${isClosing ? 'painting-detail--closing' : ''}`} ref={dialog} aria-labelledby="detail-title" onCancel={(event) => { event.preventDefault(); close(); }}>
+      <div ref={background} className="detail-panel">
+        <button className="detail-close" onClick={close} autoFocus aria-label={t('closeDetail')}><span>{t('close')}</span><svg className="detail-close-icon" viewBox="0 0 32 32" aria-hidden="true" focusable="false"><path d="M5 5 27 27M27 5 5 27" /></svg></button>
+        <aside className="detail-thumbnails" aria-label={t('additionalImages')}>
+          {detailImages.map((src, index) => (
+            <button key={src} className={`detail-thumbnail ${currentImage === index ? 'detail-thumbnail--active' : ''}`} aria-label={index === 0 ? t('showOriginal') : t('showAdditional', { number: index })} aria-pressed={currentImage === index}
+              disabled={isClosing} onClick={() => chooseImage(index)} onPointerMove={pointCursor} onPointerLeave={() => setCursorVisible(false)}>
+              <img src={src} {...responsiveImage(src, '(max-width: 800px) 19vw, 10vw')} loading="lazy" decoding="async" alt={index === 0 ? content.alt : t('additionalImage', { number: index })} />
+            </button>
+          ))}
+        </aside>
+        <div className="detail-description"><p className="eyebrow">{t('painting')}</p><h2 id="detail-title">{content.title}</h2><p>{content.description}</p>{(content.technique || selection.painting.year) && <p className="artwork-metadata">{[content.technique, selection.painting.year].filter(Boolean).join(' · ')}</p>}{selection.painting.placeholder && <span>{t('detailPending')}</span>}</div>
+      </div>
+      <div ref={artwork} className="detail-artwork" style={{ '--image-ratio': selection.ratio }}><img ref={image} className="detail-image" src={detailImages[currentImage]} alt={currentImage === 0 ? content.alt : t('additionalImage', { number: currentImage })} /></div>
+      <div ref={cursor} className={`painting-cursor detail-cursor ${cursorVisible && !isClosing ? 'painting-cursor--visible' : ''}`} style={{ '--cursor-size': `${Math.max(94, t('enlarge').length * 8 + 32)}px` }} aria-hidden="true">{t('enlarge')}</div>
+    </dialog>
+  );
+}
+
+function Gallery({ active }) {
+  const { language, t } = useLocale();
+  const [mobile, setMobile] = useState(() => typeof window !== 'undefined' && window.matchMedia('(max-width: 600px)').matches);
+  useEffect(() => {
+    const query = window.matchMedia('(max-width: 600px)');
+    const update = () => setMobile(query.matches);
+    update();
+    query.addEventListener('change', update);
+    return () => query.removeEventListener('change', update);
+  }, []);
+  const galleryPaintings = paintings.map(painting => ({ ...painting, ...localizedContent(painting, language) }));
+  // An odd number of works needs two passes to preserve the two-row pattern.
+  const cycleLength = paintings.length * (paintings.length % 2 ? 2 : 1);
+  const copies = mobile ? [1] : paintings.length % 2 ? [0, 1, 2, 3, 4, 5] : [0, 1, 2];
+  const accessibleCopy = mobile || paintings.length % 2 === 0 ? 1 : 2;
+  const activeRef = useRef(active);
+  activeRef.current = active;
+  const viewport = useRef(null);
+  const titleCursor = useRef(null);
+  const [hovered, setHovered] = useState(null);
+  const hoveredTitle = hovered ? localizedContent(hovered, language).title : '';
+  const [selection, setSelection] = useState(null);
+  const detailOpen = useRef(false);
+  const stopScroll = useRef(() => {});
+  const openPainting = (painting, copy, event) => {
+    stopScroll.current();
+    detailOpen.current = true;
+    setHovered(null);
+    const thumbnail = event.currentTarget.querySelector('img');
+    const ratio = thumbnail.naturalWidth / thumbnail.naturalHeight || 1;
+    const zoom = new DOMMatrixReadOnly(getComputedStyle(thumbnail).transform).a;
+    setSelection({ painting, copy, ratio, zoom, source: event.currentTarget, rect: event.currentTarget.getBoundingClientRect() });
+  };
+  const closePainting = () => {
+    detailOpen.current = false;
+    setSelection(null);
+  };
+  const followCursor = (event) => {
+    if (titleCursor.current) titleCursor.current.style.transform = `translate(${event.clientX}px, ${event.clientY}px) translate(-50%, -50%)`;
+  };
+  const scrollBy = useRef(() => {});
+  const move = (direction) => {
+    const element = viewport.current;
+    scrollBy.current(direction * element.clientWidth * 0.85, 280);
+  };
+
+  useEffect(() => {
+    const element = viewport.current;
+    if (mobile) {
+      element.scrollLeft = 0;
+      return;
+    }
+    const motionPreference = window.matchMedia('(prefers-reduced-motion: reduce)');
+    let target = element.scrollLeft;
+    let frame = null;
+    let lastTime = null;
+    let smoothing = 110;
+    const track = element.firstElementChild;
+    let cycleWidth = 0;
+    const wrap = () => {
+      if (!cycleWidth) return;
+      const current = element.scrollLeft;
+      const wrapped = cycleWidth + ((current - cycleWidth) % cycleWidth + cycleWidth) % cycleWidth;
+      if (Math.abs(wrapped - current) > 1) {
+        element.scrollLeft = wrapped;
+        target += element.scrollLeft - current;
+      }
+    };
+    const measure = () => {
+      const phase = cycleWidth ? (element.scrollLeft - cycleWidth) / cycleWidth : null;
+      const items = track.children;
+      cycleWidth = items[cycleLength].getBoundingClientRect().left - items[0].getBoundingClientRect().left;
+      const initialOffset = items[0].getBoundingClientRect().width / 2;
+      element.scrollLeft = cycleWidth + (phase === null ? initialOffset : cycleWidth * phase);
+      target = element.scrollLeft;
+      wrap();
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(element);
+    const stop = () => {
+      cancelAnimationFrame(frame);
+      frame = null;
+      lastTime = null;
+      target = element.scrollLeft;
+    };
+    stopScroll.current = stop;
+    const animate = (time) => {
+      const elapsed = lastTime === null ? 16.67 : Math.min(time - lastTime, 64);
+      lastTime = time;
+      wrap();
+      const distance = target - element.scrollLeft;
+      if (motionPreference.matches || Math.abs(distance) < 0.5) {
+        element.scrollLeft = target;
+        wrap();
+        stop();
+        return;
+      }
+      // Time-based easing keeps the same feel on different refresh rates.
+      element.scrollLeft += distance * (1 - Math.exp(-elapsed / smoothing));
+      frame = requestAnimationFrame(animate);
+    };
+    scrollBy.current = (delta, duration = 110) => {
+      smoothing = duration;
+      target = (frame === null ? element.scrollLeft : target) + delta;
+      if (motionPreference.matches) {
+        element.scrollLeft = target;
+        wrap();
+        stop();
+      } else if (frame === null) {
+        frame = requestAnimationFrame(animate);
+      }
+    };
+    const onWheel = (event) => {
+      if (!activeRef.current || detailOpen.current || event.ctrlKey || !window.matchMedia('(pointer: fine)').matches) return;
+      const delta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
+      if (!delta) return;
+      event.preventDefault();
+      const unit = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? element.clientWidth : 1;
+      scrollBy.current(delta * unit);
+    };
+    window.addEventListener('wheel', onWheel, { passive: false });
+    element.addEventListener('pointerdown', stop);
+    element.addEventListener('scroll', wrap);
+    return () => {
+      stop();
+      scrollBy.current = () => {};
+      stopScroll.current = () => {};
+      observer.disconnect();
+      window.removeEventListener('wheel', onWheel);
+      element.removeEventListener('pointerdown', stop);
+      element.removeEventListener('scroll', wrap);
+    };
+  }, [mobile]);
+
+  return (
+    <section className="gallery" aria-label={t('galleryLabel')}>
+      <div className="gallery-viewport" ref={viewport} tabIndex={0}
+        onKeyDown={(event) => {
+          if (!mobile && (event.key === 'ArrowRight' || event.key === 'ArrowLeft')) {
+            event.preventDefault();
+            move(event.key === 'ArrowRight' ? 1 : -1);
+          }
+        }}>
+        <div className="gallery-track">
+          {copies.flatMap((copy) => galleryPaintings.map((painting, paintingIndex) => (
+            <figure className="gallery-item" key={`${copy}-${painting.id}`} aria-hidden={copy !== accessibleCopy ? true : undefined}>
+              <button className="painting-frame" data-hovered={hovered?.id === painting.id && !selection} aria-label={t('openPainting', { title: painting.title })} tabIndex={copy === accessibleCopy ? 0 : -1}
+                onPointerEnter={(event) => {
+                  if (event.pointerType === 'mouse') { setHovered(painting); followCursor(event); }
+                }}
+                onPointerMove={(event) => { followCursor(event); if (event.pointerType === 'mouse' && !detailOpen.current) setHovered(painting); }} onPointerLeave={() => setHovered(null)}
+                onClick={(event) => openPainting(painting, copy, event)}>
+                <img src={painting.image} {...responsiveImage(painting.image, '(max-width: 600px) 88vw, 25vw')} loading={copy === accessibleCopy && paintingIndex < (mobile ? 2 : 10) ? 'eager' : 'lazy'} decoding="async" alt={painting.alt} style={{ objectPosition: painting.position, opacity: selection?.painting.id === painting.id && selection.copy === copy ? 0 : 1, transitionDuration: selection?.painting.id === painting.id && selection.copy === copy ? '0ms' : undefined }} draggable="false" />
+              </button>
+              <figcaption><span>{painting.title}</span><span>{painting.placeholder ? t('placeholder') : painting.year}</span></figcaption>
+            </figure>
+          )))}
+        </div>
+      </div>
+      <div ref={titleCursor} className={`painting-cursor ${hovered ? 'painting-cursor--visible' : ''}`} aria-hidden="true"
+        style={{ '--cursor-size': `${Math.max(88, hoveredTitle.length * 8 + 32)}px` }}>{hoveredTitle}</div>
+      {selection && <PaintingDetail selection={selection} onClose={closePainting} />}
+      <button className="gallery-edge gallery-edge--left" aria-label={t('moveLeft')} onClick={() => move(-1)}><span aria-hidden="true">←</span></button>
+      <button className="gallery-edge gallery-edge--right" aria-label={t('moveRight')} onClick={() => move(1)}><span aria-hidden="true">→</span></button>
+    </section>
+  );
+}
+
+// Previous animated panel implementation is preserved below. To restore it,
+// uncomment PagePanels and replace PageContent with PagePanels in App.
+/*
+function PagePanels({ page, introDone }) {
+  const { language, t } = useLocale();
+  const pages = navigationPages(t);
+  const panels = useRef([]);
+  const previousPage = useRef(page);
+  const running = useRef([]);
+  useLayoutEffect(() => {
+    if (previousPage.current === page) {
+      panels.current.forEach((panel, index) => { panel.style.transform = index === page ? 'translateY(0)' : 'translateY(120%)'; panel.style.visibility = index === page ? 'visible' : 'hidden'; });
+      return;
+    }
+    const outgoing = previousPage.current;
+    previousPage.current = page;
+    const direction = page > outgoing ? 1 : -1;
+    const parked = (side) => `translateY(${side * 120}%) rotateX(${-side * 16}deg) scale(.94)`;
+    const bent = (side) => `translateY(${side * 18}%) rotateX(${-side * 9}deg) scale(.98)`;
+    const resting = 'translateY(0) rotateX(0deg) scale(1)';
+    const visible = panels.current.map(panel => panel.style.visibility !== 'hidden');
+    // Read live positions before cancelling, so repeated menu clicks stay continuous.
+    const positions = panels.current.map(panel => getComputedStyle(panel).transform);
+    running.current.forEach(animation => animation.cancel());
+    running.current = [];
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const focusPage = () => panels.current[page].querySelector('h1, .gallery-viewport')?.focus({ preventScroll: true });
+    if (reducedMotion) {
+      panels.current.forEach((panel, index) => { panel.style.transform = index === page ? 'translateY(0)' : index < page ? 'translateY(-120%)' : 'translateY(120%)'; panel.style.visibility = index === page ? 'visible' : 'hidden'; });
+      focusPage(); return;
+    }
+    panels.current.forEach((panel, index) => {
+      if (index !== page && index !== outgoing) {
+        panel.style.visibility = 'hidden';
+        panel.style.transform = parked(index < page ? -1 : 1);
+        return;
+      }
+      panel.style.visibility = index === page || index === outgoing ? 'visible' : 'hidden';
+      const entering = index === page;
+      const side = entering ? direction : -direction;
+      const frames = entering
+        ? [{ transform: visible[index] ? positions[index] : parked(side) }, { transform: bent(side), offset: .65 }, { transform: resting }]
+        : [{ transform: positions[index] }, { transform: bent(side), offset: .35 }, { transform: parked(side) }];
+      panel.style.transform = frames[frames.length - 1].transform;
+      const animation = panel.animate(frames, { duration: 1800, easing: 'cubic-bezier(.45, 0, .3, 1)' });
+      running.current.push(animation);
+      animation.finished.then(() => {
+        if (previousPage.current !== page) return;
+        if (index === page) focusPage();
+        else panel.style.visibility = 'hidden';
+      }).catch(() => {});
+    });
+  }, [page]);
+  useEffect(() => () => running.current.forEach(animation => animation.cancel()), []);
+  return (
+    <main className="page-stage" aria-label={t('portfolioLabel')}>
+      {pages.map((item, index) => (
+        <div key={item.id} id={item.id} ref={element => { panels.current[index] = element; }}
+          className={`page-panel ${index === 0 ? 'page-panel--gallery' : 'page-panel--content'} ${page === index ? 'page-panel--active' : ''}`}
+          inert={page !== index} aria-hidden={page !== index}>
+          {index === 0 ? <Gallery active={introDone && page === 0} /> : (
+            <section className={`content-section ${item.id === 'o-meni' ? 'about-section' : ''}`} aria-labelledby={`${item.id}-title`}>
+              {item.id === 'o-meni' && <img className="about-portrait" src="/images/kaja_profil.webp" {...responsiveImage('/images/kaja_profil.webp', '(max-width: 700px) 360px, 42vw')} decoding="async" alt={t('portraitAlt')} width="1365" height="1365" />}
+              <div className="content-text">
+              <p className="eyebrow">{item.label}</p>
+              <h1 id={`${item.id}-title`} className="signature" tabIndex={-1}>{item.title}</h1>
+              {item.id === 'razstave' ? (
+                <ul className="exhibition-list">
+                  {exhibitions.map(exhibition => (
+                    <li key={exhibition.id} className="exhibition-item">
+                      <span className="exhibition-year">{exhibition.year}</span>
+                      <div><h2>{localizedContent(exhibition, language).title}</h2><p>{exhibition.city}</p></div>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <>
+                  <p className="content-copy">{item.text}</p>
+                  <span className="content-placeholder">{t('pending')}</span>
+                </>
+              )}
+              </div>
+            </section>
+          )}
+        </div>
+      ))}
+    </main>
+  );
+}
+
+*/
+
+const routeIds = ['domov', 'o-meni', 'razstave', 'kontakt'];
+const pagePath = (language, page) => `/${language}/${page === 0 ? '' : `${routeIds[page]}/`}`;
+const initialPage = () => {
+  const slug = location.pathname.split('/').filter(Boolean).find(segment => routeIds.includes(segment));
+  return Math.max(0, routeIds.indexOf(slug));
+};
+
+function AboutBiography({ text }) {
+  return <div className="about-biography">{text.split(/\n\s*\n/).map((paragraph, index) => (
+    <p key={index}>{paragraph.split(/(\*\*.*?\*\*)/g).map((part, partIndex) => part.startsWith('**') && part.endsWith('**')
+      ? <strong key={partIndex}>{part.slice(2, -2)}</strong> : part)}</p>
+  ))}</div>;
+}
+
+function PageContent({ page, introDone }) {
+  const { language, t } = useLocale();
+  const item = navigationPages(t)[page];
+  const main = useRef(null);
+  const previous = useRef(page);
+  useEffect(() => {
+    if (previous.current !== page) {
+      main.current.scrollTop = 0;
+      main.current.querySelector('h1, .gallery-viewport')?.focus({ preventScroll: true });
+      previous.current = page;
+    }
+  }, [page]);
+  return (
+    <main ref={main} className={`route-content ${page === 0 ? 'route-content--gallery' : `route-content--${item.id}`}`} aria-label={t('portfolioLabel')}>
+      {page === 0 ? <Gallery active={introDone} /> : (
+            <section className={`content-section ${item.id === 'o-meni' ? 'about-section' : ''}`} aria-labelledby={`${item.id}-title`}>
+              {item.id === 'o-meni' && <img className="about-portrait" src="/images/kaja_profil.webp" {...responsiveImage('/images/kaja_profil.webp', '(max-width: 700px) 360px, 42vw')} decoding="async" alt={t('portraitAlt')} width="1365" height="1365" />}
+              <div className="content-text">
+              <p className="eyebrow">{item.label}</p>
+              <h1 id={`${item.id}-title`} className="signature" tabIndex={-1}>{item.title}</h1>
+              {item.id === 'razstave' ? (
+                <ul className="exhibition-list">
+                  {exhibitions.map(exhibition => (
+                    <li key={exhibition.id} className="exhibition-item">
+                      <span className="exhibition-year">{exhibition.year}</span>
+                      <div><h2>{localizedContent(exhibition, language).title}</h2><p>{exhibition.city}</p></div>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <>
+                  {item.id === 'o-meni' ? <AboutBiography text={item.text} /> : <>
+                    <p className="content-copy">{item.text}</p>
+                    <span className="content-placeholder">{t('pending')}</span>
+                  </>}
+                </>
+              )}
+              </div>
+            </section>
+      )}
+    </main>
+  );
+}
+
+function LanguageDropdown({ language, onChange, label }) {
+  const [open, setOpen] = useState(false);
+  const root = useRef(null);
+  const trigger = useRef(null);
+  const options = useRef([]);
+  const focusIndex = useRef(0);
+  const names = { sl: 'Slovenščina', de: 'Deutsch', en: 'English' };
+  const close = (restoreFocus = false) => {
+    setOpen(false);
+    if (restoreFocus) trigger.current.focus();
+  };
+  const show = (index) => { focusIndex.current = index; setOpen(true); };
+  useEffect(() => {
+    if (!open) return;
+    options.current[focusIndex.current]?.focus();
+    const outside = (event) => { if (!root.current.contains(event.target)) setOpen(false); };
+    document.addEventListener('pointerdown', outside);
+    return () => document.removeEventListener('pointerdown', outside);
+  }, [open]);
+  return (
+    <div className="language-dropdown" ref={root} onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) close(); }}>
+      <button className="language-trigger" ref={trigger} type="button" aria-label={`${label}: ${names[language]}`} aria-haspopup="menu" aria-expanded={open} aria-controls="language-menu"
+        onClick={() => open ? close(true) : show(languages.indexOf(language))}
+        onKeyDown={(event) => {
+          if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+            event.preventDefault(); show(event.key === 'ArrowDown' ? 0 : languages.length - 1);
+          } else if (event.key === 'Escape') close(true);
+        }}>
+        {language.toUpperCase()}<svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4" /></svg>
+      </button>
+      {open && <div className="language-menu" id="language-menu" role="menu" aria-label={label}
+        onKeyDown={(event) => {
+          const index = options.current.indexOf(document.activeElement);
+          let next;
+          if (event.key === 'ArrowDown') next = (index + 1) % languages.length;
+          if (event.key === 'ArrowUp') next = (index - 1 + languages.length) % languages.length;
+          if (event.key === 'Home') next = 0;
+          if (event.key === 'End') next = languages.length - 1;
+          if (next !== undefined) { event.preventDefault(); options.current[next].focus(); }
+          if (event.key === 'Escape') { event.preventDefault(); close(true); }
+        }}>
+        {languages.map((code, index) => <button key={code} ref={element => { options.current[index] = element; }} type="button" role="menuitemradio" aria-checked={language === code} tabIndex={-1} lang={code}
+          onClick={() => { onChange(code); close(true); }}>
+          <span className="language-code">{code.toUpperCase()}</span><span>{names[code]}</span><span className="language-check" aria-hidden="true">{language === code ? '✓' : ''}</span>
+        </button>)}
+      </div>}
+    </div>
+  );
+}
+
+function App() {
+  const [language, setLanguage] = useState(initialLanguage);
+  const [page, setPage] = useState(initialPage);
+  const t = translator(language);
+  const pages = navigationPages(t);
+  const changeLanguage = (nextLanguage) => {
+    if (!languages.includes(nextLanguage)) return;
+    setLanguage(nextLanguage);
+    window.history.pushState(null, '', `${pagePath(nextLanguage, page)}${location.search}`);
+  };
+  useEffect(() => {
+    const syncLanguage = () => { setLanguage(initialLanguage()); setPage(initialPage()); };
+    window.addEventListener('popstate', syncLanguage);
+    return () => window.removeEventListener('popstate', syncLanguage);
+  }, []);
+  useEffect(() => {
+    document.documentElement.lang = language;
+    document.title = page === 0 ? translator(language)('pageTitle') : `${navigationPages(translator(language))[page].title} — Kaja Cvetko`;
+    document.querySelector('meta[name="description"]')?.setAttribute('content', translator(language)('metaDescription'));
+    try { localStorage.setItem('kaja-language', language); } catch { /* Optional persistence. */ }
+    if (!languages.includes(location.pathname.split('/')[1])) {
+      window.history.replaceState(null, '', `${pagePath(language, page)}${location.search}`);
+    }
+  }, [language, page]);
+  const [intro, setIntro] = useState(() => initialPage() === 0 ? 'visible' : 'done');
+  const navigate = (index, event) => {
+    if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) return;
+    event.preventDefault();
+    if (index === page) return;
+    window.history.pushState(null, '', pagePath(language, index));
+    setPage(index);
+  };
+
+  useEffect(() => {
+    if (initialPage() !== 0) return;
+    const reducedMotion = window.matchMedia(
+      '(prefers-reduced-motion: reduce)',
+    ).matches;
+    let holdTimer;
+    let removeTimer;
+    let revealTimer;
+    let cancelled = false;
+
+    // Load the background image and logo before starting the introduction.
+    const imageReady = new Promise((resolve) => {
+      const image = new Image();
+      image.onload = image.onerror = resolve;
+      image.src = '/intro.webp';
+    });
+    const logoReady = new Promise((resolve) => {
+      const logo = new Image();
+      logo.onload = logo.onerror = resolve;
+      logo.src = '/kaja_logo.webp';
+    });
+    Promise.race([
+      Promise.all([logoReady, imageReady]),
+      new Promise((resolve) => setTimeout(resolve, 2500)),
+    ]).then(() => {
+      if (cancelled) return;
+      holdTimer = setTimeout(
+        () => {
+          if (reducedMotion) {
+            setIntro('done');
+            return;
+          }
+          setIntro('leaving');
+          revealTimer = setTimeout(
+            () => {
+              setIntro('exiting');
+              removeTimer = setTimeout(
+                () => setIntro('done'),
+                2000,
+              );
+            },
+            200,
+          );
+        },
+        reducedMotion ? 350 : 1600,
+      );
+    });
+    return () => {
+      cancelled = true;
+      clearTimeout(holdTimer);
+      clearTimeout(removeTimer);
+      clearTimeout(revealTimer);
+    };
+  }, []);
+
+  return (
+    <LocaleContext.Provider value={{ language, t }}>
+      <div className="home" inert={intro !== 'done'}>
+        <header className="site-header">
+          <a
+            className="brand"
+            href={pagePath(language, 0)}
+            onClick={(event) => navigate(0, event)}
+            aria-label={t('homeLabel')}
+          >
+            <img className="header-logo" src="/kaja_logo.webp" alt="Kaja Cvetko" width="2172" height="724" />
+          </a>
+          <nav className="header-nav" aria-label={t('navigation')}>
+            {pages.slice(1).map((item, index) => <a key={item.id} href={pagePath(language, index + 1)} onClick={(event) => navigate(index + 1, event)} aria-current={page === index + 1 ? 'page' : undefined}>{item.title}</a>)}
+            <LanguageDropdown language={language} onChange={changeLanguage} label={t('language')} />
+          </nav>
+        </header>
+        <PageContent page={page} introDone={intro === 'done'} />
+        <footer>
+          <span>© {new Date().getFullYear()} Kaja Cvetko</span>
+          <span>{t('footer')}</span>
+        </footer>
+      </div>
+      {intro !== 'done' && (
+        <div
+          className={`intro ${intro !== 'visible' ? 'intro--leaving' : ''} ${intro === 'exiting' ? 'intro--exiting' : ''}`}
+          aria-label="Kaja Cvetko"
+        >
+          <img
+            className="intro-image"
+            src="/intro.webp"
+            {...responsiveImage('/intro.webp', '100vw')}
+            alt=""
+          />
+          <div className="intro-dark">
+            <img className="intro-logo" src="/kaja_logo.webp" alt="Kaja Cvetko" width="2172" height="724" />
+          </div>
+        </div>
+      )}
+    </LocaleContext.Provider>
+  );
+}
+
+createRoot(document.getElementById('root')).render(
+  <React.StrictMode>
+    <App />
+  </React.StrictMode>,
+);
