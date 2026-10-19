@@ -20,6 +20,8 @@ function PaintingDetail({ selection, onClose }) {
   const cameraTimeline = useRef(null);
   const backdrop = useRef(null);
   const closeButton = useRef(null);
+  const detailPanel = useRef(null);
+  const returnScroll = useRef(null);
   const closing = useRef(false);
   const mounted = useRef(false);
   const [isClosing, setIsClosing] = useState(false);
@@ -68,6 +70,7 @@ function PaintingDetail({ selection, onClose }) {
       room.style.transform = previousTransform;
     }
     const context = gsap.context(() => {
+      gsap.set(detailPanel.current, { '--detail-content-top': `${destination.bottom + 28}px` });
       if (reducedMotion || !room) {
         gsap.set(artwork.current, { ...bounds(destination), translate: 'none', autoAlpha: 1 });
         gsap.set(image.current, fullImage(destination));
@@ -123,6 +126,7 @@ function PaintingDetail({ selection, onClose }) {
     });
     return () => {
       mounted.current = false;
+      returnScroll.current?.kill();
       context.revert();
       if (scroller?.isConnected) scroller.scrollLeft = originalScroll;
       cameraTimeline.current = null;
@@ -133,9 +137,15 @@ function PaintingDetail({ selection, onClose }) {
   const close = async () => {
     if (closing.current) return;
     closing.current = true;
+    cameraTimeline.current?.pause();
     flushSync(() => { setIsClosing(true); setCursorVisible(false); setCurrentImage(0); });
     await image.current.decode().catch(() => {});
     if (!mounted.current) return;
+    if (dialog.current.scrollTop > 1 && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      returnScroll.current = gsap.to(dialog.current, { scrollTop: 0, duration: 0.3, ease: 'power2.out' });
+      await returnScroll.current;
+      if (!mounted.current) return;
+    }
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches || !cameraTimeline.current || cameraTimeline.current.time() < 0.001) {
       onClose();
       return;
@@ -145,7 +155,7 @@ function PaintingDetail({ selection, onClose }) {
   return (
     <dialog className={`painting-detail ${isClosing ? 'painting-detail--closing' : ''}`} ref={dialog} aria-labelledby="detail-title" onCancel={(event) => { event.preventDefault(); close(); }}>
       <div ref={backdrop} className="detail-gallery-backdrop" aria-hidden="true" />
-      <div className="detail-panel">
+      <div ref={detailPanel} className="detail-panel">
         <div ref={leftPanel} className="detail-half detail-half--left">
         <aside className="detail-thumbnails" aria-label={t('additionalImages')}>
           {detailImages.map((src, index) => (

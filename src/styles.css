@@ -1189,3 +1189,39 @@ figcaption span:last-child {
 @media (max-width: 600px) {
   .detail-gallery-backdrop { -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px); }
 }
+
+/* Only phones stack detail content beneath the main painting. */
+@media (max-width: 600px) {
+  .painting-detail { overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; }
+  .detail-gallery-backdrop { position: fixed; }
+  .detail-artwork { top: 29svh; width: min(88vw, calc(40svh * var(--image-ratio))); }
+  .detail-panel {
+    position: relative;
+    inset: auto;
+    min-height: 100%;
+    display: flex;
+    flex-direction: column;
+    padding: var(--detail-content-top, 64svh) 6vw 48px;
+    overflow: visible;
+  }
+  .detail-half { flex: none; width: 100%; height: auto; overflow: visible; background: transparent; }
+  .detail-thumbnails {
+    position: static;
+    width: 100%;
+    margin: 0 auto;
+    padding: 4px;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 12px;
+  }
+  .detail-thumbnail { flex: 0 0 calc((100% - 36px) / 4); }
+  .detail-description {
+    position: static;
+    width: 100%;
+    margin: 24px auto 0;
+    padding: 18px;
+  }
+  .detail-description h2 { margin: 16px 0 20px; }
+  .detail-close { position: fixed; z-index: 4; }
+}
