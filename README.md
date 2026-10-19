@@ -9,6 +9,14 @@ npm run dev
 
 Produkcijska različica: `npm run build`. Predogled: `npm run preview`.
 
+## Objava na GitHub Pages
+
+V repozitoriju odpri **Settings → Pages → Build and deployment** in nastavi **Source: GitHub Actions**. V **Custom domain** ohrani `www.kajacvetko.si`; ko je certifikat pripravljen, vklopi **Enforce HTTPS**.
+
+Workflow `.github/workflows/deploy.yml` ob pushu na `main` namesti odvisnosti z `npm ci`, zgradi aplikacijo in objavi samo mapo `dist`. Zaženeš ga lahko tudi ročno v **Actions → Deploy to GitHub Pages → Run workflow**. Napredek in napake preveri v zavihku **Actions**.
+
+Privzeti Vite `base: '/'` ustreza lastni domeni. Skript `scripts/build-pages.mjs`, ki se izvede pri `npm run build`, pripravi HTML vstopne datoteke za vse štiri strani v vseh treh jezikih. Zato neposredno odpiranje in osvežitev `/sl/o-meni/` ter drugih obstoječih poti delujeta tudi brez strežniških SPA preusmeritev. Ob dodajanju novih poti ali jezikov dopolni tudi ta skript.
+
 Ob vsakem odprtju se prikaže bel uvod s temnim podpisom v pisavi Playlist Script. Po 1,6 sekunde se bela plast skupaj s podpisom odpelje navzdol. 200 ms za njo se navzdol odpelje še slika in razkrije domačo stran. Vsak premik traja 2 sekundi. Uvod počaka na nalaganje pisave in slike (največ 2,5 sekunde). Pri zmanjšanem gibanju po 350 ms neposredno pokaže domačo stran, brez vmesnega prikaza slike in animacij.
 
 Pisava: Playlist Script, Artimasa. Referenca: https://fontmeme.com/fonts/playlist-script-font/

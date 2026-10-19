@@ -184,10 +184,16 @@ figcaption span:last-child { color: #99968b; }
 @media (max-width: 600px) { .header-logo { width: 156px; } }
 
 /* Long-form biography beside the portrait. */
+.route-content--o-meni { container-type: size; }
 .route-content--o-meni .about-section { align-items: start; }
-.route-content--o-meni .about-portrait { position: sticky; top: 40px; }
+.about-portrait-sticky { position: sticky; top: 40px; height: calc(100cqh - 80px); display: flex; align-items: center; justify-content: center; }
+.about-portrait-sticky .about-portrait { max-height: min(64svh, 100%); }
 .about-biography { max-width: 620px; color: #67675f; font-size: 15px; line-height: 1.9; }
 .about-biography p { margin: 0 0 1.5em; }
 .about-biography p:last-child { margin-bottom: 0; }
 .about-biography strong { color: #292923; font-weight: 500; }
-@media (max-width: 700px) { .route-content--o-meni .about-portrait { position: static; } }
+@media (max-width: 700px) {
+  .route-content--o-meni { container-type: normal; }
+  .about-portrait-sticky { position: static; height: auto; }
+  .about-portrait-sticky .about-portrait { max-height: 42svh; }
+}

@@ -411,7 +411,11 @@ function PageContent({ page, introDone }) {
     <main ref={main} className={`route-content ${page === 0 ? 'route-content--gallery' : `route-content--${item.id}`}`} aria-label={t('portfolioLabel')}>
       {page === 0 ? <Gallery active={introDone} /> : (
             <section className={`content-section ${item.id === 'o-meni' ? 'about-section' : ''}`} aria-labelledby={`${item.id}-title`}>
-              {item.id === 'o-meni' && <img className="about-portrait" src="/images/kaja_profil.webp" {...responsiveImage('/images/kaja_profil.webp', '(max-width: 700px) 360px, 42vw')} decoding="async" alt={t('portraitAlt')} width="1365" height="1365" />}
+              {item.id === 'o-meni' && (
+                <div className="about-portrait-sticky">
+                  <img className="about-portrait" src="/images/kaja_profil.webp" {...responsiveImage('/images/kaja_profil.webp', '(max-width: 700px) 360px, 42vw')} decoding="async" alt={t('portraitAlt')} width="1365" height="1365" />
+                </div>
+              )}
               <div className="content-text">
               <p className="eyebrow">{item.label}</p>
               <h1 id={`${item.id}-title`} className="signature" tabIndex={-1}>{item.title}</h1>
