@@ -27,10 +27,6 @@ export function artworkSourceFrame(source, fallback) {
     const point = new DOMPoint(x - originX, y - originY).matrixTransform(matrix);
     return { x: point.x / point.w + originX, y: point.y / point.w + originY };
   };
-  const roomCorners = [[0, 0], [room.offsetWidth, 0], [room.offsetWidth, room.offsetHeight], [0, room.offsetHeight]].map(([x, y]) => project(x, y));
-  const roomBounds = room.getBoundingClientRect();
-  const roomX = roomBounds.left - Math.min(...roomCorners.map(p => p.x));
-  const roomY = roomBounds.top - Math.min(...roomCorners.map(p => p.y));
   let x = 0, y = 0;
   for (let node = source; node && node !== room; node = node.offsetParent) {
     x += node.offsetLeft;
@@ -40,11 +36,18 @@ export function artworkSourceFrame(source, fallback) {
     x -= node.scrollLeft;
     y -= node.scrollTop;
   }
-  const width = source.offsetWidth, height = source.offsetHeight;
+  const sourceStyle = getComputedStyle(source);
+  const width = parseFloat(sourceStyle.width) || source.offsetWidth;
+  const height = parseFloat(sourceStyle.height) || source.offsetHeight;
   const corners = [[x, y], [x + width, y], [x + width, y + height], [x, y + height]].map(([x, y]) => project(x, y));
   const first = corners[0];
+  const screenBounds = source.getBoundingClientRect();
   return {
-    rect: { left: roomX + first.x, top: roomY + first.y, width, height },
+    rect: {
+      left: screenBounds.left + first.x - Math.min(...corners.map(p => p.x)),
+      top: screenBounds.top + first.y - Math.min(...corners.map(p => p.y)),
+      width, height,
+    },
     transform: rectangleToQuad(width, height, corners.map(p => ({ x: p.x - first.x, y: p.y - first.y }))),
   };
 }

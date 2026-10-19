@@ -34,7 +34,7 @@ function PaintingDetail({ selection, onClose }) {
     setCurrentImage(index);
     setCursorVisible(false);
   };
-  const bounds = (rect) => ({ left: `${rect.left + rect.width / 2}px`, top: `${rect.top + rect.height / 2}px`, width: `${rect.width}px`, height: `${rect.height}px` });
+  const bounds = (rect) => ({ left: `${rect.left}px`, top: `${rect.top}px`, width: `${rect.width}px`, height: `${rect.height}px` });
   const sourceFrame = () => artworkSourceFrame(selection.source, selection.rect);
   const crop = (rect, zoom = 1) => {
     const ratio = selection.ratio;
@@ -53,15 +53,18 @@ function PaintingDetail({ selection, onClose }) {
     mounted.current = true;
     closing.current = false;
     modal.showModal();
+    const destination = artwork.current.getBoundingClientRect();
+    // Freeze pixel geometry before animating. Avoid combining percentage translate,
+    // changing dimensions and a perspective matrix on the same image in WebKit.
+    Object.assign(artwork.current.style, bounds(destination), { translate: 'none' });
     if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-      const destination = artwork.current.getBoundingClientRect();
       const source = sourceFrame();
       animations.current = [
         artwork.current.animate([
           { ...bounds(source.rect), transform: source.transform },
           { ...bounds(destination), transform: 'none' },
-        ], { duration: 1100, easing: 'cubic-bezier(.22, 1, .36, 1)' }),
-        image.current.animate([crop(source.rect, selection.zoom), fullImage(destination)], { duration: 1100, easing: 'cubic-bezier(.22, 1, .36, 1)' }),
+        ], { duration: 1100, easing: 'cubic-bezier(.22, 1, .36, 1)', fill: 'both' }),
+        image.current.animate([crop(source.rect, selection.zoom), fullImage(destination)], { duration: 1100, easing: 'cubic-bezier(.22, 1, .36, 1)', fill: 'both' }),
         ...[leftPanel.current, rightPanel.current].map((panel, index) => panel.animate([
           { transform: `translateX(${index === 0 ? '-100%' : '100%'})` },
           { transform: 'translateX(0)' },
@@ -142,15 +145,16 @@ function Gallery({ active }) {
     return () => query.removeEventListener('change', update);
   }, []);
   const galleryPaintings = paintings.map(painting => ({ ...painting, ...localizedContent(painting, language) }));
-  // Explicit mobile columns keep the three-row pattern identical across loop boundaries.
+  // Explicit mobile columns keep the two-row pattern identical across loop boundaries.
+  const mobileRows = 2;
   let mobileColumn = 1;
   let mobileRow = 1;
   const mobileLayout = paintings.map(painting => {
     const span = painting.galleryRows === 2 ? 2 : 1;
-    if (mobileRow + span > 4) { mobileColumn++; mobileRow = 1; }
+    if (mobileRow + span > mobileRows + 1) { mobileColumn++; mobileRow = 1; }
     const placement = { column: mobileColumn, row: mobileRow, span };
     mobileRow += span;
-    if (mobileRow > 3) { mobileColumn++; mobileRow = 1; }
+    if (mobileRow > mobileRows) { mobileColumn++; mobileRow = 1; }
     return placement;
   });
   const mobileColumns = mobileColumn - (mobileRow === 1 ? 1 : 0);
@@ -166,15 +170,24 @@ function Gallery({ active }) {
   const cursorLabel = t('details');
   const [selection, setSelection] = useState(null);
   const detailOpen = useRef(false);
+  const pendingOpen = useRef(0);
+  useEffect(() => () => { pendingOpen.current++; }, []);
   const stopScroll = useRef(() => {});
-  const openPainting = (painting, copy, event) => {
+  const openPainting = async (painting, copy, event) => {
+    const source = event.currentTarget;
+    const request = ++pendingOpen.current;
     stopScroll.current();
+    // Keep the gallery image visible until the full-size detail is decoded.
+    const fullSize = new Image();
+    fullSize.src = painting.image;
+    await fullSize.decode().catch(() => {});
+    if (request !== pendingOpen.current || !source.isConnected) return;
     detailOpen.current = true;
     setHovered(null);
-    const thumbnail = event.currentTarget.querySelector('img');
-    const ratio = thumbnail.naturalWidth / thumbnail.naturalHeight || 1;
+    const thumbnail = source.querySelector('img');
+    const ratio = fullSize.naturalWidth / fullSize.naturalHeight || thumbnail.naturalWidth / thumbnail.naturalHeight || 1;
     const zoom = new DOMMatrixReadOnly(getComputedStyle(thumbnail).transform).a;
-    setSelection({ painting, copy, ratio, zoom, source: event.currentTarget, rect: event.currentTarget.getBoundingClientRect() });
+    setSelection({ painting, copy, ratio, zoom, source, rect: source.getBoundingClientRect() });
   };
   const closePainting = () => {
     detailOpen.current = false;
@@ -186,7 +199,7 @@ function Gallery({ active }) {
   const scrollBy = useRef(() => {});
   const move = (direction) => {
     const element = viewport.current;
-    scrollBy.current(direction * element.clientWidth * 0.85, 420);
+    scrollBy.current(direction * element.clientWidth * 0.85, mobile ? 160 : 420);
   };
 
   useEffect(() => {
@@ -195,7 +208,7 @@ function Gallery({ active }) {
     let target = element.scrollLeft;
     let frame = null;
     let lastTime = null;
-    let smoothing = 180;
+    let smoothing = mobile ? 45 : 180;
     const track = element.firstElementChild;
     let cycleWidth = 0;
     const room = element.parentElement;
@@ -254,7 +267,7 @@ function Gallery({ active }) {
       syncFloor();
       frame = requestAnimationFrame(animate);
     };
-    scrollBy.current = (delta, duration = 180) => {
+    scrollBy.current = (delta, duration = mobile ? 45 : 180) => {
       smoothing = duration;
       target = (frame === null ? element.scrollLeft : target) + delta;
       if (motionPreference.matches) {
@@ -271,7 +284,7 @@ function Gallery({ active }) {
       if (!delta) return;
       event.preventDefault();
       const unit = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? element.clientWidth : 1;
-      scrollBy.current(delta * unit * 0.65);
+      scrollBy.current(delta * unit * (mobile ? 1 : 0.65));
     };
     let gesture = null;
     let suppressClick = false;
@@ -294,7 +307,7 @@ function Gallery({ active }) {
         element.setPointerCapture(event.pointerId);
       }
       suppressClick = true;
-      scrollBy.current(gesture.axis === 'x' ? dx : dy, 70);
+      scrollBy.current((gesture.axis === 'x' ? dx : dy) * 1.5, 45);
       gesture.x = event.clientX;
       gesture.y = event.clientY;
     };
@@ -641,6 +654,22 @@ function IntroScreen({ header, onComplete }) {
 }
 
 function App() {
+  useEffect(() => {
+    const root = document.documentElement;
+    const onPointer = event => { root.dataset.inputMethod = event.pointerType === 'touch' ? 'touch' : 'pointer'; };
+    const onKey = event => {
+      if (['Tab', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End', 'Enter', ' '].includes(event.key)) {
+        root.dataset.inputMethod = 'keyboard';
+      }
+    };
+    document.addEventListener('pointerdown', onPointer, true);
+    document.addEventListener('keydown', onKey, true);
+    return () => {
+      document.removeEventListener('pointerdown', onPointer, true);
+      document.removeEventListener('keydown', onKey, true);
+      delete root.dataset.inputMethod;
+    };
+  }, []);
   const header = useRef(null);
   useLayoutEffect(() => {
     const element = header.current;
