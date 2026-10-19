@@ -66,3 +66,7 @@ Za nove JPG/PNG fotografije: `python3 scripts/optimize_images.py` (potrebuje Pil
 ## Kazalec nad slikami
 
 Krožni kazalec galerije je enotno črn z belim napisom »Detajli« (DE/EN: »Details«) in osnovno pisavo strani.
+
+## Prehod s kamero v detajle
+
+GSAP ob izbiri dela najprej poravna in premakne celotno galerijsko steno proti sliki. Ko se pogled ustavi, ostra slika ostane nad zamegljeno galerijo, z leve in desne pa se pojavijo dodatne fotografije in opis. Zameglitev je blažja na telefonu. Zapiranje obrne isto časovnico; pred povratkom se ponovno pokaže originalna fotografija. Kontekst GSAP ob odstranitvi detajla povrne prvotne sloge stene. Pri zmanjšanem gibanju se detajli odprejo neposredno.

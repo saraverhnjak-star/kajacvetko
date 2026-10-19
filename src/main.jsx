@@ -6,7 +6,8 @@ import { LocaleContext, useLocale, translator, languages, initialLanguage, local
 import { paintings } from './data/paintings';
 import { responsiveImage } from './imageProps';
 import { exhibitions } from './data/exhibitions';
-import { artworkSourceFrame } from './artworkGeometry';
+import { gsap } from 'gsap';
+import { revealArtworkScroll } from './galleryCamera';
 
 function PaintingDetail({ selection, onClose }) {
   const { language, t } = useLocale();
@@ -16,7 +17,9 @@ function PaintingDetail({ selection, onClose }) {
   const artwork = useRef(null);
   const leftPanel = useRef(null);
   const rightPanel = useRef(null);
-  const animations = useRef([]);
+  const cameraTimeline = useRef(null);
+  const backdrop = useRef(null);
+  const closeButton = useRef(null);
   const closing = useRef(false);
   const mounted = useRef(false);
   const [isClosing, setIsClosing] = useState(false);
@@ -34,84 +37,114 @@ function PaintingDetail({ selection, onClose }) {
     setCurrentImage(index);
     setCursorVisible(false);
   };
-  const bounds = (rect) => ({ left: `${rect.left}px`, top: `${rect.top}px`, width: `${rect.width}px`, height: `${rect.height}px` });
-  const sourceFrame = () => artworkSourceFrame(selection.source, selection.rect);
-  const crop = (rect, zoom = 1) => {
-    const ratio = selection.ratio;
-    const width = Math.max(rect.width, rect.height * ratio);
-    const height = width / ratio;
+  const bounds = rect => ({ left: rect.left, top: rect.top, width: rect.width, height: rect.height });
+  const crop = rect => {
+    const width = Math.max(rect.width, rect.height * selection.ratio);
+    const height = width / selection.ratio;
     const [x, y] = selection.painting.position.split(' ').map(value => parseFloat(value) / 100);
-    return {
-      left: `${(rect.width - width) * x - width * (zoom - 1) / 2}px`,
-      top: `${(rect.height - height) * y - height * (zoom - 1) / 2}px`,
-      width: `${width * zoom}px`, height: `${height * zoom}px`,
-    };
+    return { left: (rect.width - width) * x, top: (rect.height - height) * y, width, height };
   };
-  const fullImage = (rect) => ({ left: '0px', top: '0px', width: `${rect.width}px`, height: `${rect.height}px` });
+  const fullImage = rect => ({ left: 0, top: 0, width: rect.width, height: rect.height });
   useLayoutEffect(() => {
     const modal = dialog.current;
+    const source = selection.source;
+    const room = source?.closest('.gallery-room');
+    const scroller = source?.closest('.gallery-viewport');
+    const originalScroll = scroller?.scrollLeft;
     mounted.current = true;
     closing.current = false;
     modal.showModal();
     const destination = artwork.current.getBoundingClientRect();
-    // Freeze pixel geometry before animating. Avoid combining percentage translate,
-    // changing dimensions and a perspective matrix on the same image in WebKit.
-    Object.assign(artwork.current.style, bounds(destination), { translate: 'none' });
-    if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-      const source = sourceFrame();
-      animations.current = [
-        artwork.current.animate([
-          { ...bounds(source.rect), transform: source.transform },
-          { ...bounds(destination), transform: 'none' },
-        ], { duration: 1100, easing: 'cubic-bezier(.22, 1, .36, 1)', fill: 'both' }),
-        image.current.animate([crop(source.rect, selection.zoom), fullImage(destination)], { duration: 1100, easing: 'cubic-bezier(.22, 1, .36, 1)', fill: 'both' }),
-        ...[leftPanel.current, rightPanel.current].map((panel, index) => panel.animate([
-          { transform: `translateX(${index === 0 ? '-100%' : '100%'})` },
-          { transform: 'translateX(0)' },
-        ], { duration: 1400, easing: 'cubic-bezier(.22, 1, .36, 1)' })),
-      ];
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    let flatRoom, flatSource, flatViewport, origin;
+    if (room) {
+      // Read the wall's layout without its projection, then restore it before paint.
+      const previousTransform = room.style.transform;
+      room.style.transform = 'none';
+      flatRoom = room.getBoundingClientRect();
+      flatSource = source.getBoundingClientRect();
+      flatViewport = scroller.getBoundingClientRect();
+      origin = getComputedStyle(room).transformOrigin.split(' ').map(parseFloat);
+      room.style.transform = previousTransform;
     }
+    const context = gsap.context(() => {
+      if (reducedMotion || !room) {
+        gsap.set(artwork.current, { ...bounds(destination), translate: 'none', autoAlpha: 1 });
+        gsap.set(image.current, fullImage(destination));
+        gsap.set(backdrop.current, { autoAlpha: 1 });
+        if (source) gsap.set(source, { opacity: 0 });
+        return;
+      }
+      const revealScroll = Math.max(0, Math.min(scroller.scrollWidth - scroller.clientWidth,
+        revealArtworkScroll(flatViewport, flatSource, originalScroll)));
+      const scrollShift = revealScroll - originalScroll;
+      const revealDuration = Math.abs(scrollShift) > 1 ? 0.35 : 0;
+      // Compute camera focus at the position after the canvas has been revealed.
+      flatSource = { left: flatSource.left - scrollShift, top: flatSource.top, width: flatSource.width, height: flatSource.height };
+      const scale = Math.min(destination.width / flatSource.width, destination.height / flatSource.height);
+      const centre = { x: destination.left + destination.width / 2, y: destination.top + destination.height / 2 };
+      const pivot = { x: flatRoom.left + origin[0], y: flatRoom.top + origin[1] };
+      const cameraRect = {
+        left: centre.x - flatSource.width * scale / 2,
+        top: centre.y - flatSource.height * scale / 2,
+        width: flatSource.width * scale,
+        height: flatSource.height * scale,
+      };
+      const cameraDuration = 1.05;
+      const cameraEnd = revealDuration + cameraDuration;
+      gsap.set(artwork.current, { ...bounds(cameraRect), translate: 'none', autoAlpha: 0 });
+      gsap.set(image.current, crop(cameraRect));
+      gsap.set(leftPanel.current, { xPercent: -100, autoAlpha: 0 });
+      gsap.set(rightPanel.current, { xPercent: 100, autoAlpha: 0 });
+      gsap.set([backdrop.current, closeButton.current], { autoAlpha: 0 });
+      const timeline = gsap.timeline({
+        paused: true,
+        defaults: { ease: 'power2.inOut' },
+        onReverseComplete: () => { if (mounted.current && closing.current) onClose(); },
+      });
+      cameraTimeline.current = timeline;
+      if (revealDuration) timeline.to(scroller, { scrollLeft: revealScroll, duration: revealDuration }, 0);
+      timeline.to(room, {
+        x: centre.x - pivot.x - (flatSource.left + flatSource.width / 2 - pivot.x) * scale,
+        y: centre.y - pivot.y - (flatSource.top + flatSource.height / 2 - pivot.y) * scale,
+        z: 0, scale, rotationX: 0, rotationY: 0, rotation: 0,
+        transformPerspective: 1500, force3D: true, duration: cameraDuration,
+      }, revealDuration)
+        // At this point the wall is facing the viewer. Swap identical image bounds
+        // before blurring so the selected painting remains sharp throughout.
+        .set(source, { opacity: 0 }, cameraEnd)
+        .set(artwork.current, { autoAlpha: 1 }, cameraEnd)
+        .to(artwork.current, { ...bounds(destination), duration: 0.3 }, cameraEnd)
+        .to(image.current, { ...fullImage(destination), duration: 0.3 }, cameraEnd)
+        .to(backdrop.current, { autoAlpha: 1, duration: 0.35 }, cameraEnd)
+        .to([leftPanel.current, rightPanel.current], { xPercent: 0, autoAlpha: 1, duration: 0.7 }, cameraEnd + 0.1)
+        .to(closeButton.current, { autoAlpha: 1, duration: 0.2 }, cameraEnd + 0.25);
+      timeline.play(0);
+    });
     return () => {
       mounted.current = false;
-      animations.current.forEach(animation => animation.cancel());
+      context.revert();
+      if (scroller?.isConnected) scroller.scrollLeft = originalScroll;
+      cameraTimeline.current = null;
       modal.close();
+      source?.isConnected && source.focus({ preventScroll: true });
     };
   }, [selection]);
   const close = async () => {
     if (closing.current) return;
     closing.current = true;
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-      onClose();
-      return;
-    }
     flushSync(() => { setIsClosing(true); setCursorVisible(false); setCurrentImage(0); });
     await image.current.decode().catch(() => {});
     if (!mounted.current) return;
-    // Start from the current frame, including when opening is interrupted.
-    const artworkStyle = getComputedStyle(artwork.current);
-    const currentBounds = Object.fromEntries(['left', 'top', 'width', 'height', 'transform'].map(key => [key, artworkStyle[key]]));
-    const currentImageStyle = getComputedStyle(image.current);
-    const currentImage = Object.fromEntries(['left', 'top', 'width', 'height'].map(key => [key, currentImageStyle[key]]));
-    const panels = [leftPanel.current, rightPanel.current];
-    const panelTransforms = panels.map(panel => getComputedStyle(panel).transform);
-    const source = sourceFrame();
-    animations.current.forEach(animation => animation.cancel());
-    animations.current = [
-      artwork.current.animate([
-        currentBounds, { ...bounds(source.rect), transform: source.transform },
-      ], { duration: 1100, easing: 'cubic-bezier(.65, 0, .35, 1)', fill: 'forwards' }),
-      image.current.animate([currentImage, crop(source.rect)], { duration: 1100, easing: 'cubic-bezier(.65, 0, .35, 1)', fill: 'forwards' }),
-      ...panels.map((panel, index) => panel.animate([
-        { transform: panelTransforms[index] },
-        { transform: `translateX(${index === 0 ? '-100%' : '100%'})` },
-      ], { duration: 1100, easing: 'cubic-bezier(.65, 0, .35, 1)', fill: 'forwards' })),
-    ];
-    Promise.all(animations.current.map(animation => animation.finished)).then(() => {
-      if (mounted.current) onClose();
-    }).catch(() => {});
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches || !cameraTimeline.current || cameraTimeline.current.time() < 0.001) {
+      onClose();
+      return;
+    }
+    cameraTimeline.current.timeScale(1.15).reverse();
   };
   return (
     <dialog className={`painting-detail ${isClosing ? 'painting-detail--closing' : ''}`} ref={dialog} aria-labelledby="detail-title" onCancel={(event) => { event.preventDefault(); close(); }}>
+      <div ref={backdrop} className="detail-gallery-backdrop" aria-hidden="true" />
       <div className="detail-panel">
         <div ref={leftPanel} className="detail-half detail-half--left">
         <aside className="detail-thumbnails" aria-label={t('additionalImages')}>
@@ -127,7 +160,7 @@ function PaintingDetail({ selection, onClose }) {
         <div className="detail-description"><p className="eyebrow">{t('painting')}</p><h2 id="detail-title">{content.title}</h2><p>{content.description}</p>{(content.technique || selection.painting.year) && <p className="artwork-metadata">{[content.technique, selection.painting.year].filter(Boolean).join(' · ')}</p>}{selection.painting.placeholder && <span>{t('detailPending')}</span>}</div>
         </div>
       </div>
-      <button className="detail-close" onClick={close} autoFocus aria-label={t('closeDetail')}><span>{t('close')}</span><svg className="detail-close-icon" viewBox="0 0 32 32" aria-hidden="true" focusable="false"><path d="M5 5 27 27M27 5 5 27" /></svg></button>
+      <button ref={closeButton} className="detail-close" onClick={close} autoFocus aria-label={t('closeDetail')}><span>{t('close')}</span><svg className="detail-close-icon" viewBox="0 0 32 32" aria-hidden="true" focusable="false"><path d="M5 5 27 27M27 5 5 27" /></svg></button>
       <div ref={artwork} className="detail-artwork" style={{ '--image-ratio': selection.ratio }}><img ref={image} className="detail-image" src={detailImages[currentImage]} alt={currentImage === 0 ? content.alt : t('additionalImage', { number: currentImage })} /></div>
       <div ref={cursor} className={`painting-cursor detail-cursor ${cursorVisible && !isClosing ? 'painting-cursor--visible' : ''}`} style={{ '--cursor-size': `${Math.max(94, t('enlarge').length * 8 + 32)}px` }} aria-hidden="true">{t('enlarge')}</div>
     </dialog>
@@ -220,6 +253,8 @@ function Gallery({ active }) {
     };
     const wrap = () => {
       if (!cycleWidth) return;
+      // The camera owns scrollLeft until it returns to the original gallery view.
+      if (detailOpen.current) { syncFloor(); return; }
       const current = element.scrollLeft;
       const wrapped = cycleWidth + ((current - cycleWidth) % cycleWidth + cycleWidth) % cycleWidth;
       if (Math.abs(wrapped - current) > 1) {
@@ -375,7 +410,7 @@ function Gallery({ active }) {
                     const figure = image.closest('.gallery-item');
                     figure.style.setProperty('--artwork-ratio', ratio);
                   }}
-                  style={{ objectPosition: painting.position, opacity: selection?.painting.id === painting.id && selection.copy === copy ? 0 : 1, transitionDuration: selection?.painting.id === painting.id && selection.copy === copy ? '0ms' : undefined }} draggable="false" />
+                  style={{ objectPosition: painting.position }} draggable="false" />
               </button>
               <figcaption><span>{painting.title}</span><span>{painting.placeholder ? t('placeholder') : painting.year}</span></figcaption>
             </figure>

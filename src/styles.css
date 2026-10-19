@@ -296,7 +296,7 @@ figcaption span:last-child {
   flex: 0 0 50%;
   height: 100%;
   min-width: 0;
-  background: #f6f1e7;
+  background: rgb(246 241 231 / 32%);
   overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior: contain;
@@ -325,6 +325,7 @@ figcaption span:last-child {
   max-width: none;
 }
 .detail-close {
+  color: #000;
   position: absolute;
   z-index: 1;
   right: 6vw;
@@ -1052,42 +1053,36 @@ figcaption span:last-child {
   }
 }
 
-/* Thin canvas edges catch the light; the cast shadow separates art from wall. */
+/* Soft light from above-left; all canvases cast the same gentle lower-right shadow. */
 .gallery .painting-frame {
   position: relative;
   isolation: isolate;
   box-shadow:
-    2px 1px 0 #a49783,
-    4px 3px 0 #796d5c,
-    6px 7px 5px #40372c26,
-    12px 17px 20px -5px #40372c30;
+    1px 1px 0 #b6ad9f80,
+    2px 3px 0 #93877566,
+    4px 7px 9px -3px #40372c1f,
+    8px 14px 18px -7px #40372c1a;
 }
 .gallery .painting-frame::after {
   content: '';
   position: absolute;
   inset: 0;
   pointer-events: none;
-  border: 1px solid #fff8e81f;
-  background: linear-gradient(
-    135deg,
-    #fffdf509,
-    transparent 35% 80%,
-    #231b1209
-  );
+  border: 1px solid #fff8e814;
+  background:
+    radial-gradient(ellipse at 35% 0%, #fffdf50d, transparent 65%),
+    linear-gradient(160deg, #fffdf507, transparent 50% 80%, #231b1205);
   box-shadow:
-    inset 1px 1px 1px #fffdf530,
-    inset -1px -1px 2px #261d142b;
-}
-.gallery .painting-frame[data-selected='true'] {
-  opacity: 0;
-  transition: none;
+    inset 0 1px 1px #fffdf526,
+    inset 1px 0 1px #fffdf514,
+    inset -1px -1px 1px #261d1414;
 }
 @media (max-width: 600px) {
   .gallery .painting-frame {
     box-shadow:
-      2px 2px 0 #8a7b66,
-      4px 6px 4px #40372c26,
-      9px 12px 16px -5px #40372c30;
+      1px 2px 0 #93877566,
+      3px 5px 7px -2px #40372c1f,
+      6px 10px 13px -5px #40372c1a;
   }
 }
 
@@ -1161,7 +1156,7 @@ figcaption span:last-child {
     height: calc(100% - 28px);
     aspect-ratio: var(--artwork-ratio, 1);
     background: transparent;
-    box-shadow: 2px 2px 0 #8a7b66, 5px 7px 10px -2px #40372c30;
+    box-shadow: 1px 2px 0 #93877566, 3px 5px 7px -2px #40372c1f, 6px 10px 13px -5px #40372c1a;
   }
   .gallery .painting-frame img { width: 100%; height: 100%; object-fit: cover; }
   .gallery figcaption { width: 100%; justify-content: center; text-align: center; gap: 8px; font-size: 10px; margin-top: 0; line-height: 1.4; }
@@ -1179,4 +1174,18 @@ figcaption span:last-child {
   :root:not([data-input-method='keyboard']) .detail-thumbnail--active:focus {
     outline: 1px solid #292923;
   }
+}
+
+/* A sharp foreground artwork over the gallery after the camera settles. */
+.detail-gallery-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgb(246 241 231 / 28%);
+  -webkit-backdrop-filter: blur(5px);
+  backdrop-filter: blur(5px);
+}
+.detail-description { padding: 18px; background: rgb(246 241 231 / 92%); }
+.detail-artwork { will-change: transform; }
+@media (max-width: 600px) {
+  .detail-gallery-backdrop { -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px); }
 }
