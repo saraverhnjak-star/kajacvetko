@@ -62,3 +62,7 @@ Fotografije na strani uporabljajo WebP, največ 2400 px po daljši stranici (kak
 Originali so ohranjeni v `assets-original/public/`, prejšnja arhivska mapa pa v `assets-original/images_original/`. Arhiva sta zunaj `public` in se ne vključita v produkcijsko objavo.
 
 Za nove JPG/PNG fotografije: `python3 scripts/optimize_images.py` (potrebuje Pillow). Skript shrani original, ustvari WebP in manjšo različico, nato obnovi manifest. V podatkih slik uporabi nastalo pot `.webp`. Podrobno poročilo o prvotni in novi velikosti je v `scripts/image-optimization.json`.
+
+## Kazalec nad slikami
+
+Krožni kazalec galerije je enotno črn z belim napisom »Detajli« (DE/EN: »Details«) in osnovno pisavo strani.

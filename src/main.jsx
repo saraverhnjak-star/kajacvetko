@@ -121,10 +121,10 @@ function PaintingDetail({ selection, onClose }) {
         </aside>
         </div>
         <div ref={rightPanel} className="detail-half detail-half--right">
-        <button className="detail-close" onClick={close} autoFocus aria-label={t('closeDetail')}><span>{t('close')}</span><svg className="detail-close-icon" viewBox="0 0 32 32" aria-hidden="true" focusable="false"><path d="M5 5 27 27M27 5 5 27" /></svg></button>
         <div className="detail-description"><p className="eyebrow">{t('painting')}</p><h2 id="detail-title">{content.title}</h2><p>{content.description}</p>{(content.technique || selection.painting.year) && <p className="artwork-metadata">{[content.technique, selection.painting.year].filter(Boolean).join(' · ')}</p>}{selection.painting.placeholder && <span>{t('detailPending')}</span>}</div>
         </div>
       </div>
+      <button className="detail-close" onClick={close} autoFocus aria-label={t('closeDetail')}><span>{t('close')}</span><svg className="detail-close-icon" viewBox="0 0 32 32" aria-hidden="true" focusable="false"><path d="M5 5 27 27M27 5 5 27" /></svg></button>
       <div ref={artwork} className="detail-artwork" style={{ '--image-ratio': selection.ratio }}><img ref={image} className="detail-image" src={detailImages[currentImage]} alt={currentImage === 0 ? content.alt : t('additionalImage', { number: currentImage })} /></div>
       <div ref={cursor} className={`painting-cursor detail-cursor ${cursorVisible && !isClosing ? 'painting-cursor--visible' : ''}`} style={{ '--cursor-size': `${Math.max(94, t('enlarge').length * 8 + 32)}px` }} aria-hidden="true">{t('enlarge')}</div>
     </dialog>
@@ -151,7 +151,7 @@ function Gallery({ active }) {
   const viewport = useRef(null);
   const titleCursor = useRef(null);
   const [hovered, setHovered] = useState(null);
-  const hoveredTitle = hovered ? localizedContent(hovered, language).title : '';
+  const cursorLabel = t('details');
   const [selection, setSelection] = useState(null);
   const detailOpen = useRef(false);
   const stopScroll = useRef(() => {});
@@ -315,7 +315,9 @@ function Gallery({ active }) {
       </div>
       </div>
       <div ref={titleCursor} className={`painting-cursor ${hovered ? 'painting-cursor--visible' : ''}`} aria-hidden="true"
-        style={{ '--cursor-size': `${Math.max(88, hoveredTitle.length * 8 + 32)}px` }}>{hoveredTitle}</div>
+        style={{
+          '--cursor-size': `${Math.max(96, cursorLabel.length * 8 + 32)}px`,
+        }}>{cursorLabel}</div>
       {selection && <PaintingDetail selection={selection} onClose={closePainting} />}
       <button className="gallery-edge gallery-edge--left" aria-label={t('moveLeft')} onClick={() => move(-1)}><span aria-hidden="true">←</span></button>
       <button className="gallery-edge gallery-edge--right" aria-label={t('moveRight')} onClick={() => move(1)}><span aria-hidden="true">→</span></button>
@@ -394,7 +396,7 @@ function PagePanels({ page, introDone }) {
                   {exhibitions.map(exhibition => (
                     <li key={exhibition.id} className="exhibition-item">
                       <span className="exhibition-year">{exhibition.year}</span>
-                      <div><h2>{localizedContent(exhibition, language).title}</h2><p>{exhibition.city}</p></div>
+                      <div><h2>{localizedContent(exhibition, language).title}</h2><p>{localizedContent(exhibition, language).city ?? exhibition.city}</p></div>
                     </li>
                   ))}
                 </ul>
@@ -458,7 +460,7 @@ function PageContent({ page, introDone }) {
                   {exhibitions.map(exhibition => (
                     <li key={exhibition.id} className="exhibition-item">
                       <span className="exhibition-year">{exhibition.year}</span>
-                      <div><h2>{localizedContent(exhibition, language).title}</h2><p>{exhibition.city}</p></div>
+                      <div><h2>{localizedContent(exhibition, language).title}</h2><p>{localizedContent(exhibition, language).city ?? exhibition.city}</p></div>
                     </li>
                   ))}
                 </ul>
@@ -594,6 +596,8 @@ function App() {
   }, []);
   const [language, setLanguage] = useState(initialLanguage);
   const [page, setPage] = useState(initialPage);
+  const [headerScrolled, setHeaderScrolled] = useState(false);
+  useEffect(() => { setHeaderScrolled(false); }, [page]);
   const t = translator(language);
   const pages = navigationPages(t);
   const changeLanguage = (nextLanguage) => {
@@ -627,8 +631,17 @@ function App() {
 
   return (
     <LocaleContext.Provider value={{ language, t }}>
-      <div className={`home ${intro !== 'done' ? 'home--intro' : ''}`} inert={intro !== 'done'}>
-        <header ref={header} className="site-header">
+      <div className={`home ${intro !== 'done' ? 'home--intro' : ''}`} inert={intro !== 'done'}
+        onScrollCapture={(event) => {
+          const scroller = event.target;
+          if (scroller instanceof HTMLElement && scroller.matches('.gallery-viewport, .route-content')) {
+            setHeaderScrolled(scroller.scrollTop > 8);
+          }
+        }}>
+        <header ref={header} className={`site-header ${headerScrolled ? 'site-header--scrolled' : ''}`}>
+          <nav className="header-nav header-nav--left" aria-label={t('navigation')}>
+            {pages.slice(1, 3).map((item, index) => <a key={item.id} href={pagePath(language, index + 1)} onClick={(event) => navigate(index + 1, event)} aria-current={page === index + 1 ? 'page' : undefined}>{item.title}</a>)}
+          </nav>
           <a
             className="brand"
             href={pagePath(language, 0)}
@@ -637,8 +650,8 @@ function App() {
           >
             <img className="header-logo" src="/kaja_logo.webp" alt="Kaja Cvetko" width="2172" height="724" />
           </a>
-          <nav className="header-nav" aria-label={t('navigation')}>
-            {pages.slice(1).map((item, index) => <a key={item.id} href={pagePath(language, index + 1)} onClick={(event) => navigate(index + 1, event)} aria-current={page === index + 1 ? 'page' : undefined}>{item.title}</a>)}
+          <nav className="header-nav header-nav--right" aria-label={t('navigation')}>
+            <a href={pagePath(language, 3)} onClick={(event) => navigate(3, event)} aria-current={page === 3 ? 'page' : undefined}>{pages[3].title}</a>
             <LanguageDropdown language={language} onChange={changeLanguage} label={t('language')} />
           </nav>
         </header>
