@@ -19,6 +19,7 @@ function PaintingDetail({ selection, onClose }) {
   const rightPanel = useRef(null);
   const cameraTimeline = useRef(null);
   const mobileClose = useRef(null);
+  const cameraStart = useRef(0);
   const backdrop = useRef(null);
   const closeButton = useRef(null);
   const detailPanel = useRef(null);
@@ -54,6 +55,7 @@ function PaintingDetail({ selection, onClose }) {
     const room = source?.closest('.gallery-room');
     const scroller = source?.closest('.gallery-viewport');
     const originalScroll = scroller?.scrollLeft;
+    let retainedScroll = originalScroll;
     const originalRoomTransform = room && getComputedStyle(room).transform;
     mounted.current = true;
     closing.current = false;
@@ -88,7 +90,9 @@ function PaintingDetail({ selection, onClose }) {
       const revealScroll = Math.max(0, Math.min(scroller.scrollWidth - scroller.clientWidth,
         revealArtworkScroll(flatViewport, flatSource, originalScroll)));
       const scrollShift = revealScroll - originalScroll;
-      const revealDuration = Math.abs(scrollShift) > 1 ? 0.35 : 0;
+      const revealDuration = Math.abs(scrollShift) > 1 ? 0.9 : 0;
+      retainedScroll = revealScroll;
+      cameraStart.current = revealDuration;
       // Compute camera focus at the position after the canvas has been revealed.
       flatSource = { left: flatSource.left - scrollShift, top: flatSource.top, width: flatSource.width, height: flatSource.height };
       const focusScale = Math.min(destination.width / flatSource.width, destination.height / flatSource.height);
@@ -138,8 +142,7 @@ function PaintingDetail({ selection, onClose }) {
           .set(source, { opacity: 1 }, 0.25)
           .set(artwork.current, { autoAlpha: 0 }, 0.25)
           .to(backdrop.current, { autoAlpha: 0, duration: 0.45 }, 0.25)
-          .to(room, { transform: originalRoomTransform, duration: 1.05 }, 0.25)
-          .to(scroller, { scrollLeft: originalScroll, duration: 0.35 }, 1.3);
+          .to(room, { transform: originalRoomTransform, duration: 1.05 }, 0.25);
       });
       if (revealDuration) timeline.to(scroller, { scrollLeft: revealScroll, duration: revealDuration }, 0);
       timeline.to(room, {
@@ -162,7 +165,9 @@ function PaintingDetail({ selection, onClose }) {
       mounted.current = false;
       returnScroll.current?.kill();
       context.revert();
-      if (scroller?.isConnected) scroller.scrollLeft = originalScroll;
+      // Strict Mode also cleans up a trial setup before the animation starts.
+      // Only a real close should retain the newly centered position.
+      if (scroller?.isConnected) scroller.scrollLeft = closing.current ? retainedScroll : originalScroll;
       cameraTimeline.current = null;
       mobileClose.current = null;
       modal.close();
@@ -186,7 +191,16 @@ function PaintingDetail({ selection, onClose }) {
       return;
     }
     if (mobileClose.current) mobileClose.current();
-    else cameraTimeline.current.timeScale(1.15).reverse();
+    else {
+      // Reverse only the camera/detail sequence; keep the edge-centering scroll.
+      const timeline = cameraTimeline.current;
+      const end = Math.min(timeline.time(), cameraStart.current);
+      returnScroll.current = timeline.tweenTo(end, {
+        duration: Math.max(0.01, (timeline.time() - end) / 1.15),
+        ease: 'none',
+        onComplete: () => { if (mounted.current) onClose(); },
+      });
+    }
   };
   return (
     <dialog className={`painting-detail ${isClosing ? 'painting-detail--closing' : ''}`} ref={dialog} aria-labelledby="detail-title" onCancel={(event) => { event.preventDefault(); close(); }}>
@@ -254,6 +268,7 @@ function Gallery({ active }) {
   const stopScroll = useRef(() => {});
   const openPainting = async (painting, copy, event) => {
     const source = event.currentTarget;
+    source.focus({ preventScroll: true });
     const request = ++pendingOpen.current;
     stopScroll.current();
     // Keep the gallery image visible until the full-size detail is decoded.
@@ -444,6 +459,8 @@ function Gallery({ active }) {
                 gridRow: `${mobileLayout[paintingIndex].row} / span ${mobileLayout[paintingIndex].span}`,
               } : undefined}>
               <button className="painting-frame" data-selected={selection?.painting.id === painting.id && selection.copy === copy} data-hovered={hovered?.id === painting.id && !selection} aria-label={t('openPainting', { title: painting.title })} tabIndex={copy === accessibleCopy ? 0 : -1}
+                // Native mouse focus would instantly reveal a clipped canvas before GSAP runs.
+                onMouseDown={(event) => { if (event.button === 0) event.preventDefault(); }}
                 onPointerEnter={(event) => {
                   if (event.pointerType === 'mouse') { setHovered(painting); followCursor(event); }
                 }}

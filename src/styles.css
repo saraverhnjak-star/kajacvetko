@@ -1058,7 +1058,7 @@ figcaption span:last-child {
   position: relative;
   isolation: isolate;
   box-shadow:
-    1px 1px 0 #b6ad9f80,
+    16px 17px 20px #b6ad9f80,
     2px 3px 0 #93877566,
     4px 7px 9px -3px #40372c1f,
     8px 14px 18px -7px #40372c1a;
@@ -1077,15 +1077,6 @@ figcaption span:last-child {
     inset 1px 0 1px #fffdf514,
     inset -1px -1px 1px #261d1414;
 }
-@media (max-width: 600px) {
-  .gallery .painting-frame {
-    box-shadow:
-      1px 2px 0 #93877566,
-      3px 5px 7px -2px #40372c1f,
-      6px 10px 13px -5px #40372c1a;
-  }
-}
-
 @media (max-width: 600px) {
   .site-header { transition: background-color 180ms ease; }
   .site-header--scrolled { background-color: #f6f1e7; }
@@ -1119,7 +1110,7 @@ figcaption span:last-child {
     position: absolute;
     top: 95%;
     left: -400px;
-    width: calc(100% + 800px);
+    width: calc(200% + 800px);
     height: 400%;
     pointer-events: none;
     background: linear-gradient(180deg, #514b4226, transparent 25%), url('/images/gallery-floor-microcement.webp') repeat;
@@ -1159,7 +1150,6 @@ figcaption span:last-child {
     height: calc(100% - 28px);
     aspect-ratio: var(--artwork-ratio, 1);
     background: transparent;
-    box-shadow: 1px 2px 0 #93877566, 3px 5px 7px -2px #40372c1f, 6px 10px 13px -5px #40372c1a;
   }
   .gallery .painting-frame img { width: 100%; height: 100%; object-fit: cover; }
   .gallery figcaption { width: 100%; justify-content: center; text-align: center; gap: 8px; font-size: 10px; margin-top: 0; line-height: 1.4; }
