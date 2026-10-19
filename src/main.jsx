@@ -18,6 +18,7 @@ function PaintingDetail({ selection, onClose }) {
   const leftPanel = useRef(null);
   const rightPanel = useRef(null);
   const cameraTimeline = useRef(null);
+  const mobileClose = useRef(null);
   const backdrop = useRef(null);
   const closeButton = useRef(null);
   const detailPanel = useRef(null);
@@ -53,11 +54,15 @@ function PaintingDetail({ selection, onClose }) {
     const room = source?.closest('.gallery-room');
     const scroller = source?.closest('.gallery-viewport');
     const originalScroll = scroller?.scrollLeft;
+    const originalRoomTransform = room && getComputedStyle(room).transform;
     mounted.current = true;
     closing.current = false;
     modal.showModal();
     const destination = artwork.current.getBoundingClientRect();
     const mobileDetail = window.matchMedia('(max-width: 600px)').matches;
+    // Temporarily disabled: const mobileFullscreenZoom = mobileDetail;
+    // Enable again to zoom through the full-screen painting on mobile.
+    const mobileFullscreenZoom = false;
     const screen = modal.getBoundingClientRect();
     const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     let flatRoom, flatSource, flatViewport, origin;
@@ -88,8 +93,8 @@ function PaintingDetail({ selection, onClose }) {
       flatSource = { left: flatSource.left - scrollShift, top: flatSource.top, width: flatSource.width, height: flatSource.height };
       const focusScale = Math.min(destination.width / flatSource.width, destination.height / flatSource.height);
       const focusCentre = { x: destination.left + destination.width / 2, y: destination.top + destination.height / 2 };
-      const scale = mobileDetail ? Math.max(screen.width / flatSource.width, screen.height / flatSource.height) * 1.02 : focusScale;
-      const centre = mobileDetail ? { x: screen.left + screen.width / 2, y: screen.top + screen.height / 2 } : focusCentre;
+      const scale = mobileFullscreenZoom ? Math.max(screen.width / flatSource.width, screen.height / flatSource.height) * 1.02 : focusScale;
+      const centre = mobileFullscreenZoom ? { x: screen.left + screen.width / 2, y: screen.top + screen.height / 2 } : focusCentre;
       const pivot = { x: flatRoom.left + origin[0], y: flatRoom.top + origin[1] };
       const cameraPose = (scale, centre) => ({
         x: centre.x - pivot.x - (flatSource.left + flatSource.width / 2 - pivot.x) * scale,
@@ -103,10 +108,10 @@ function PaintingDetail({ selection, onClose }) {
         width: flatSource.width * scale,
         height: flatSource.height * scale,
       };
-      const cameraDuration = mobileDetail ? 1.3 : 1.05;
+      const cameraDuration = mobileFullscreenZoom ? 1.3 : 1.05;
       const cameraEnd = revealDuration + cameraDuration;
       const settleStart = cameraEnd;
-      const settleDuration = mobileDetail ? 1.35 : 0.3;
+      const settleDuration = mobileFullscreenZoom ? 1.35 : 0.3;
       gsap.set(artwork.current, { ...bounds(cameraRect), translate: 'none', autoAlpha: 0 });
       gsap.set(image.current, crop(cameraRect));
       gsap.set(leftPanel.current, { xPercent: -100, autoAlpha: 0 });
@@ -119,6 +124,23 @@ function PaintingDetail({ selection, onClose }) {
         onReverseComplete: () => { if (mounted.current && closing.current) onClose(); },
       });
       cameraTimeline.current = timeline;
+      if (mobileFullscreenZoom) mobileClose.current = () => context.add(() => {
+        // Return directly from the detail pose, skipping the opening's full-screen zoom.
+        gsap.set(modal, { overflowY: 'hidden' });
+        gsap.set(room, cameraPose(focusScale, focusCentre));
+        returnScroll.current = gsap.timeline({
+          defaults: { ease: 'power2.inOut' },
+          onComplete: () => { if (mounted.current) onClose(); },
+        })
+          .to(leftPanel.current, { xPercent: -100, autoAlpha: 0, duration: 0.45 }, 0)
+          .to(rightPanel.current, { xPercent: 100, autoAlpha: 0, duration: 0.45 }, 0)
+          .to(closeButton.current, { autoAlpha: 0, duration: 0.2 }, 0)
+          .set(source, { opacity: 1 }, 0.25)
+          .set(artwork.current, { autoAlpha: 0 }, 0.25)
+          .to(backdrop.current, { autoAlpha: 0, duration: 0.45 }, 0.25)
+          .to(room, { transform: originalRoomTransform, duration: 1.05 }, 0.25)
+          .to(scroller, { scrollLeft: originalScroll, duration: 0.35 }, 1.3);
+      });
       if (revealDuration) timeline.to(scroller, { scrollLeft: revealScroll, duration: revealDuration }, 0);
       timeline.to(room, {
         ...cameraPose(scale, centre), duration: cameraDuration,
@@ -130,9 +152,9 @@ function PaintingDetail({ selection, onClose }) {
         .to(artwork.current, { ...bounds(destination), duration: settleDuration }, settleStart)
         .to(image.current, { ...fullImage(destination), duration: settleDuration }, settleStart)
         .to(backdrop.current, { autoAlpha: 1, duration: 0.35 }, cameraEnd)
-        .to([leftPanel.current, rightPanel.current], { xPercent: 0, autoAlpha: 1, duration: 0.7 }, mobileDetail ? settleStart + 0.95 : cameraEnd + 0.1)
-        .to(closeButton.current, { autoAlpha: 1, duration: 0.2 }, mobileDetail ? settleStart + 0.85 : cameraEnd + 0.25);
-      if (mobileDetail) timeline.to(room, { ...cameraPose(focusScale, focusCentre), duration: settleDuration }, settleStart);
+        .to([leftPanel.current, rightPanel.current], { xPercent: 0, autoAlpha: 1, duration: 0.7 }, mobileFullscreenZoom ? settleStart + 0.95 : cameraEnd + 0.1)
+        .to(closeButton.current, { autoAlpha: 1, duration: 0.2 }, mobileFullscreenZoom ? settleStart + 0.85 : cameraEnd + 0.25);
+      if (mobileFullscreenZoom) timeline.to(room, { ...cameraPose(focusScale, focusCentre), duration: settleDuration }, settleStart);
       if (mobileDetail) timeline.set(modal, { overflowY: 'auto' });
       timeline.play(0);
     });
@@ -142,6 +164,7 @@ function PaintingDetail({ selection, onClose }) {
       context.revert();
       if (scroller?.isConnected) scroller.scrollLeft = originalScroll;
       cameraTimeline.current = null;
+      mobileClose.current = null;
       modal.close();
       source?.isConnected && source.focus({ preventScroll: true });
     };
@@ -162,7 +185,8 @@ function PaintingDetail({ selection, onClose }) {
       onClose();
       return;
     }
-    cameraTimeline.current.timeScale(1.15).reverse();
+    if (mobileClose.current) mobileClose.current();
+    else cameraTimeline.current.timeScale(1.15).reverse();
   };
   return (
     <dialog className={`painting-detail ${isClosing ? 'painting-detail--closing' : ''}`} ref={dialog} aria-labelledby="detail-title" onCancel={(event) => { event.preventDefault(); close(); }}>

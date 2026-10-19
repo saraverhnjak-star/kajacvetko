@@ -1106,6 +1106,9 @@ figcaption span:last-child {
   .gallery { --gap: 20px; isolation: isolate; }
   .gallery-room {
     top: calc(var(--header-height) + 12px);
+    /* Overscan the projected wall so its recessed left edge stays off-screen. */
+    left: -80px;
+    width: calc(100% + 160px);
     height: calc(100% - var(--header-height) - 24px);
     transform-origin: right 45%;
     transform: perspective(1000px) translateZ(-80px) rotateY(8deg);
@@ -1117,7 +1120,7 @@ figcaption span:last-child {
     top: 95%;
     left: -400px;
     width: calc(100% + 800px);
-    height: 100%;
+    height: 400%;
     pointer-events: none;
     background: linear-gradient(180deg, #514b4226, transparent 25%), url('/images/gallery-floor-microcement.webp') repeat;
     background-size: auto, 400px 400px;
@@ -1180,14 +1183,14 @@ figcaption span:last-child {
 .detail-gallery-backdrop {
   position: absolute;
   inset: 0;
-  background: rgb(246 241 231 / 28%);
+  background: rgb(246 241 231 / 80%);
   -webkit-backdrop-filter: blur(5px);
   backdrop-filter: blur(5px);
 }
-.detail-description { padding: 18px; background: rgb(246 241 231 / 92%); }
+.detail-description { padding: 18px; background: transparent; }
 .detail-artwork { will-change: transform; }
 @media (max-width: 600px) {
-  .detail-gallery-backdrop { background: #f7f2e8; -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px); }
+  .detail-gallery-backdrop { background: rgb(247 242 232 / 80%); -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px); }
 }
 
 /* Only phones stack detail content beneath the main painting. */
@@ -1221,6 +1224,7 @@ figcaption span:last-child {
     width: 100%;
     margin: 24px auto 0;
     padding: 18px;
+    background: transparent;
   }
   .detail-description h2 { margin: 16px 0 20px; }
   .detail-close { position: fixed; z-index: 4; }
