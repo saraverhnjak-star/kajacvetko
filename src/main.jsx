@@ -6,6 +6,7 @@ import { LocaleContext, useLocale, translator, languages, initialLanguage, local
 import { paintings } from './data/paintings';
 import { responsiveImage } from './imageProps';
 import { exhibitions } from './data/exhibitions';
+import { artworkSourceFrame } from './artworkGeometry';
 
 function PaintingDetail({ selection, onClose }) {
   const { language, t } = useLocale();
@@ -13,7 +14,8 @@ function PaintingDetail({ selection, onClose }) {
   const dialog = useRef(null);
   const image = useRef(null);
   const artwork = useRef(null);
-  const background = useRef(null);
+  const leftPanel = useRef(null);
+  const rightPanel = useRef(null);
   const animations = useRef([]);
   const closing = useRef(false);
   const mounted = useRef(false);
@@ -33,7 +35,7 @@ function PaintingDetail({ selection, onClose }) {
     setCursorVisible(false);
   };
   const bounds = (rect) => ({ left: `${rect.left + rect.width / 2}px`, top: `${rect.top + rect.height / 2}px`, width: `${rect.width}px`, height: `${rect.height}px` });
-  const sourceRect = () => selection.source?.isConnected ? selection.source.getBoundingClientRect() : selection.rect;
+  const sourceFrame = () => artworkSourceFrame(selection.source, selection.rect);
   const crop = (rect, zoom = 1) => {
     const ratio = selection.ratio;
     const width = Math.max(rect.width, rect.height * ratio);
@@ -53,16 +55,17 @@ function PaintingDetail({ selection, onClose }) {
     modal.showModal();
     if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
       const destination = artwork.current.getBoundingClientRect();
+      const source = sourceFrame();
       animations.current = [
         artwork.current.animate([
-          bounds(sourceRect()),
-          bounds(destination),
+          { ...bounds(source.rect), transform: source.transform },
+          { ...bounds(destination), transform: 'none' },
         ], { duration: 1100, easing: 'cubic-bezier(.22, 1, .36, 1)' }),
-        image.current.animate([crop(sourceRect(), selection.zoom), fullImage(destination)], { duration: 1100, easing: 'cubic-bezier(.22, 1, .36, 1)' }),
-        background.current.animate([
-          { transform: 'translateY(100%)' },
-          { transform: 'translateY(0)' },
-        ], { duration: 1400, easing: 'cubic-bezier(.22, 1, .36, 1)' }),
+        image.current.animate([crop(source.rect, selection.zoom), fullImage(destination)], { duration: 1100, easing: 'cubic-bezier(.22, 1, .36, 1)' }),
+        ...[leftPanel.current, rightPanel.current].map((panel, index) => panel.animate([
+          { transform: `translateX(${index === 0 ? '-100%' : '100%'})` },
+          { transform: 'translateX(0)' },
+        ], { duration: 1400, easing: 'cubic-bezier(.22, 1, .36, 1)' })),
       ];
     }
     return () => {
@@ -82,19 +85,23 @@ function PaintingDetail({ selection, onClose }) {
     await image.current.decode().catch(() => {});
     if (!mounted.current) return;
     // Start from the current frame, including when opening is interrupted.
-    const currentBounds = bounds(artwork.current.getBoundingClientRect());
+    const artworkStyle = getComputedStyle(artwork.current);
+    const currentBounds = Object.fromEntries(['left', 'top', 'width', 'height', 'transform'].map(key => [key, artworkStyle[key]]));
     const currentImageStyle = getComputedStyle(image.current);
     const currentImage = Object.fromEntries(['left', 'top', 'width', 'height'].map(key => [key, currentImageStyle[key]]));
-    const panelTransform = getComputedStyle(background.current).transform;
+    const panels = [leftPanel.current, rightPanel.current];
+    const panelTransforms = panels.map(panel => getComputedStyle(panel).transform);
+    const source = sourceFrame();
     animations.current.forEach(animation => animation.cancel());
     animations.current = [
       artwork.current.animate([
-        currentBounds, bounds(sourceRect()),
+        currentBounds, { ...bounds(source.rect), transform: source.transform },
       ], { duration: 1100, easing: 'cubic-bezier(.65, 0, .35, 1)', fill: 'forwards' }),
-      image.current.animate([currentImage, crop(sourceRect())], { duration: 1100, easing: 'cubic-bezier(.65, 0, .35, 1)', fill: 'forwards' }),
-      background.current.animate([
-        { transform: panelTransform }, { transform: 'translateY(100%)' },
-      ], { duration: 1100, easing: 'cubic-bezier(.65, 0, .35, 1)', fill: 'forwards' }),
+      image.current.animate([currentImage, crop(source.rect)], { duration: 1100, easing: 'cubic-bezier(.65, 0, .35, 1)', fill: 'forwards' }),
+      ...panels.map((panel, index) => panel.animate([
+        { transform: panelTransforms[index] },
+        { transform: `translateX(${index === 0 ? '-100%' : '100%'})` },
+      ], { duration: 1100, easing: 'cubic-bezier(.65, 0, .35, 1)', fill: 'forwards' })),
     ];
     Promise.all(animations.current.map(animation => animation.finished)).then(() => {
       if (mounted.current) onClose();
@@ -102,8 +109,8 @@ function PaintingDetail({ selection, onClose }) {
   };
   return (
     <dialog className={`painting-detail ${isClosing ? 'painting-detail--closing' : ''}`} ref={dialog} aria-labelledby="detail-title" onCancel={(event) => { event.preventDefault(); close(); }}>
-      <div ref={background} className="detail-panel">
-        <button className="detail-close" onClick={close} autoFocus aria-label={t('closeDetail')}><span>{t('close')}</span><svg className="detail-close-icon" viewBox="0 0 32 32" aria-hidden="true" focusable="false"><path d="M5 5 27 27M27 5 5 27" /></svg></button>
+      <div className="detail-panel">
+        <div ref={leftPanel} className="detail-half detail-half--left">
         <aside className="detail-thumbnails" aria-label={t('additionalImages')}>
           {detailImages.map((src, index) => (
             <button key={src} className={`detail-thumbnail ${currentImage === index ? 'detail-thumbnail--active' : ''}`} aria-label={index === 0 ? t('showOriginal') : t('showAdditional', { number: index })} aria-pressed={currentImage === index}
@@ -112,7 +119,11 @@ function PaintingDetail({ selection, onClose }) {
             </button>
           ))}
         </aside>
+        </div>
+        <div ref={rightPanel} className="detail-half detail-half--right">
+        <button className="detail-close" onClick={close} autoFocus aria-label={t('closeDetail')}><span>{t('close')}</span><svg className="detail-close-icon" viewBox="0 0 32 32" aria-hidden="true" focusable="false"><path d="M5 5 27 27M27 5 5 27" /></svg></button>
         <div className="detail-description"><p className="eyebrow">{t('painting')}</p><h2 id="detail-title">{content.title}</h2><p>{content.description}</p>{(content.technique || selection.painting.year) && <p className="artwork-metadata">{[content.technique, selection.painting.year].filter(Boolean).join(' · ')}</p>}{selection.painting.placeholder && <span>{t('detailPending')}</span>}</div>
+        </div>
       </div>
       <div ref={artwork} className="detail-artwork" style={{ '--image-ratio': selection.ratio }}><img ref={image} className="detail-image" src={detailImages[currentImage]} alt={currentImage === 0 ? content.alt : t('additionalImage', { number: currentImage })} /></div>
       <div ref={cursor} className={`painting-cursor detail-cursor ${cursorVisible && !isClosing ? 'painting-cursor--visible' : ''}`} style={{ '--cursor-size': `${Math.max(94, t('enlarge').length * 8 + 32)}px` }} aria-hidden="true">{t('enlarge')}</div>
@@ -163,7 +174,7 @@ function Gallery({ active }) {
   const scrollBy = useRef(() => {});
   const move = (direction) => {
     const element = viewport.current;
-    scrollBy.current(direction * element.clientWidth * 0.85, 280);
+    scrollBy.current(direction * element.clientWidth * 0.85, 420);
   };
 
   useEffect(() => {
@@ -176,23 +187,34 @@ function Gallery({ active }) {
     let target = element.scrollLeft;
     let frame = null;
     let lastTime = null;
-    let smoothing = 110;
+    let smoothing = 180;
     const track = element.firstElementChild;
     let cycleWidth = 0;
+    const room = element.parentElement;
+    const floorTile = 400;
+    let floorPhase = 0;
+    const syncFloor = () => {
+      const offset = ((element.scrollLeft + floorPhase) % floorTile + floorTile) % floorTile;
+      room.style.setProperty('--floor-offset', `${-offset}px`);
+    };
     const wrap = () => {
       if (!cycleWidth) return;
       const current = element.scrollLeft;
       const wrapped = cycleWidth + ((current - cycleWidth) % cycleWidth + cycleWidth) % cycleWidth;
       if (Math.abs(wrapped - current) > 1) {
         element.scrollLeft = wrapped;
+        // Repositioning the infinite track must not make the floor texture jump.
+        floorPhase += current - element.scrollLeft;
         target += element.scrollLeft - current;
       }
+      syncFloor();
     };
     const measure = () => {
       const phase = cycleWidth ? (element.scrollLeft - cycleWidth) / cycleWidth : null;
       const items = track.children;
-      cycleWidth = items[cycleLength].getBoundingClientRect().left - items[0].getBoundingClientRect().left;
-      const initialOffset = items[0].getBoundingClientRect().width / 2;
+      // Scroll distances stay in layout pixels, independent of the wall perspective.
+      cycleWidth = items[cycleLength].offsetLeft - items[0].offsetLeft;
+      const initialOffset = items[0].offsetWidth / 2;
       element.scrollLeft = cycleWidth + (phase === null ? initialOffset : cycleWidth * phase);
       target = element.scrollLeft;
       wrap();
@@ -200,6 +222,7 @@ function Gallery({ active }) {
     measure();
     const observer = new ResizeObserver(measure);
     observer.observe(element);
+    observer.observe(track);
     const stop = () => {
       cancelAnimationFrame(frame);
       frame = null;
@@ -220,9 +243,10 @@ function Gallery({ active }) {
       }
       // Time-based easing keeps the same feel on different refresh rates.
       element.scrollLeft += distance * (1 - Math.exp(-elapsed / smoothing));
+      syncFloor();
       frame = requestAnimationFrame(animate);
     };
-    scrollBy.current = (delta, duration = 110) => {
+    scrollBy.current = (delta, duration = 180) => {
       smoothing = duration;
       target = (frame === null ? element.scrollLeft : target) + delta;
       if (motionPreference.matches) {
@@ -239,7 +263,7 @@ function Gallery({ active }) {
       if (!delta) return;
       event.preventDefault();
       const unit = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? element.clientWidth : 1;
-      scrollBy.current(delta * unit);
+      scrollBy.current(delta * unit * 0.65);
     };
     window.addEventListener('wheel', onWheel, { passive: false });
     element.addEventListener('pointerdown', stop);
@@ -249,6 +273,7 @@ function Gallery({ active }) {
       scrollBy.current = () => {};
       stopScroll.current = () => {};
       observer.disconnect();
+      room.style.removeProperty('--floor-offset');
       window.removeEventListener('wheel', onWheel);
       element.removeEventListener('pointerdown', stop);
       element.removeEventListener('scroll', wrap);
@@ -257,6 +282,7 @@ function Gallery({ active }) {
 
   return (
     <section className="gallery" aria-label={t('galleryLabel')}>
+      <div className="gallery-room">
       <div className="gallery-viewport" ref={viewport} tabIndex={0}
         onKeyDown={(event) => {
           if (!mobile && (event.key === 'ArrowRight' || event.key === 'ArrowLeft')) {
@@ -266,19 +292,27 @@ function Gallery({ active }) {
         }}>
         <div className="gallery-track">
           {copies.flatMap((copy) => galleryPaintings.map((painting, paintingIndex) => (
-            <figure className="gallery-item" key={`${copy}-${painting.id}`} aria-hidden={copy !== accessibleCopy ? true : undefined}>
-              <button className="painting-frame" data-hovered={hovered?.id === painting.id && !selection} aria-label={t('openPainting', { title: painting.title })} tabIndex={copy === accessibleCopy ? 0 : -1}
+            <figure className="gallery-item" data-wall-tall={painting.galleryRows === 2} key={`${copy}-${painting.id}`} aria-hidden={copy !== accessibleCopy ? true : undefined}>
+              <button className="painting-frame" data-selected={selection?.painting.id === painting.id && selection.copy === copy} data-hovered={hovered?.id === painting.id && !selection} aria-label={t('openPainting', { title: painting.title })} tabIndex={copy === accessibleCopy ? 0 : -1}
                 onPointerEnter={(event) => {
                   if (event.pointerType === 'mouse') { setHovered(painting); followCursor(event); }
                 }}
                 onPointerMove={(event) => { followCursor(event); if (event.pointerType === 'mouse' && !detailOpen.current) setHovered(painting); }} onPointerLeave={() => setHovered(null)}
                 onClick={(event) => openPainting(painting, copy, event)}>
-                <img src={painting.image} {...responsiveImage(painting.image, '(max-width: 600px) 88vw, 25vw')} loading={copy === accessibleCopy && paintingIndex < (mobile ? 2 : 10) ? 'eager' : 'lazy'} decoding="async" alt={painting.alt} style={{ objectPosition: painting.position, opacity: selection?.painting.id === painting.id && selection.copy === copy ? 0 : 1, transitionDuration: selection?.painting.id === painting.id && selection.copy === copy ? '0ms' : undefined }} draggable="false" />
+                <img src={painting.image} {...responsiveImage(painting.image, '(max-width: 600px) 88vw, 25vw')} loading={copy === accessibleCopy && paintingIndex < (mobile ? 2 : 10) ? 'eager' : 'lazy'} decoding="async" alt={painting.alt}
+                  onLoad={(event) => {
+                    const image = event.currentTarget;
+                    const ratio = image.naturalWidth / image.naturalHeight;
+                    const figure = image.closest('.gallery-item');
+                    figure.style.setProperty('--artwork-ratio', ratio);
+                  }}
+                  style={{ objectPosition: painting.position, opacity: selection?.painting.id === painting.id && selection.copy === copy ? 0 : 1, transitionDuration: selection?.painting.id === painting.id && selection.copy === copy ? '0ms' : undefined }} draggable="false" />
               </button>
               <figcaption><span>{painting.title}</span><span>{painting.placeholder ? t('placeholder') : painting.year}</span></figcaption>
             </figure>
           )))}
         </div>
+      </div>
       </div>
       <div ref={titleCursor} className={`painting-cursor ${hovered ? 'painting-cursor--visible' : ''}`} aria-hidden="true"
         style={{ '--cursor-size': `${Math.max(88, hoveredTitle.length * 8 + 32)}px` }}>{hoveredTitle}</div>
@@ -494,6 +528,15 @@ function LanguageDropdown({ language, onChange, label }) {
 }
 
 function App() {
+  const header = useRef(null);
+  useLayoutEffect(() => {
+    const element = header.current;
+    const measure = () => element.parentElement.style.setProperty('--header-height', `${element.getBoundingClientRect().height}px`);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
   const [language, setLanguage] = useState(initialLanguage);
   const [page, setPage] = useState(initialPage);
   const t = translator(language);
@@ -584,7 +627,7 @@ function App() {
   return (
     <LocaleContext.Provider value={{ language, t }}>
       <div className="home" inert={intro !== 'done'}>
-        <header className="site-header">
+        <header ref={header} className="site-header">
           <a
             className="brand"
             href={pagePath(language, 0)}
@@ -599,10 +642,6 @@ function App() {
           </nav>
         </header>
         <PageContent page={page} introDone={intro === 'done'} />
-        <footer>
-          <span>© {new Date().getFullYear()} Kaja Cvetko</span>
-          <span>{t('footer')}</span>
-        </footer>
       </div>
       {intro !== 'done' && (
         <div
