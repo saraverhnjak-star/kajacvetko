@@ -57,6 +57,8 @@ function PaintingDetail({ selection, onClose }) {
     closing.current = false;
     modal.showModal();
     const destination = artwork.current.getBoundingClientRect();
+    const mobileDetail = window.matchMedia('(max-width: 600px)').matches;
+    const screen = modal.getBoundingClientRect();
     const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     let flatRoom, flatSource, flatViewport, origin;
     if (room) {
@@ -84,22 +86,33 @@ function PaintingDetail({ selection, onClose }) {
       const revealDuration = Math.abs(scrollShift) > 1 ? 0.35 : 0;
       // Compute camera focus at the position after the canvas has been revealed.
       flatSource = { left: flatSource.left - scrollShift, top: flatSource.top, width: flatSource.width, height: flatSource.height };
-      const scale = Math.min(destination.width / flatSource.width, destination.height / flatSource.height);
-      const centre = { x: destination.left + destination.width / 2, y: destination.top + destination.height / 2 };
+      const focusScale = Math.min(destination.width / flatSource.width, destination.height / flatSource.height);
+      const focusCentre = { x: destination.left + destination.width / 2, y: destination.top + destination.height / 2 };
+      const scale = mobileDetail ? Math.max(screen.width / flatSource.width, screen.height / flatSource.height) * 1.02 : focusScale;
+      const centre = mobileDetail ? { x: screen.left + screen.width / 2, y: screen.top + screen.height / 2 } : focusCentre;
       const pivot = { x: flatRoom.left + origin[0], y: flatRoom.top + origin[1] };
+      const cameraPose = (scale, centre) => ({
+        x: centre.x - pivot.x - (flatSource.left + flatSource.width / 2 - pivot.x) * scale,
+        y: centre.y - pivot.y - (flatSource.top + flatSource.height / 2 - pivot.y) * scale,
+        z: 0, scale, rotationX: 0, rotationY: 0, rotation: 0,
+        transformPerspective: 1500, force3D: true,
+      });
       const cameraRect = {
         left: centre.x - flatSource.width * scale / 2,
         top: centre.y - flatSource.height * scale / 2,
         width: flatSource.width * scale,
         height: flatSource.height * scale,
       };
-      const cameraDuration = 1.05;
+      const cameraDuration = mobileDetail ? 1.3 : 1.05;
       const cameraEnd = revealDuration + cameraDuration;
+      const settleStart = cameraEnd;
+      const settleDuration = mobileDetail ? 1.35 : 0.3;
       gsap.set(artwork.current, { ...bounds(cameraRect), translate: 'none', autoAlpha: 0 });
       gsap.set(image.current, crop(cameraRect));
       gsap.set(leftPanel.current, { xPercent: -100, autoAlpha: 0 });
       gsap.set(rightPanel.current, { xPercent: 100, autoAlpha: 0 });
       gsap.set([backdrop.current, closeButton.current], { autoAlpha: 0 });
+      if (mobileDetail) gsap.set(modal, { overflowY: 'hidden' });
       const timeline = gsap.timeline({
         paused: true,
         defaults: { ease: 'power2.inOut' },
@@ -108,20 +121,19 @@ function PaintingDetail({ selection, onClose }) {
       cameraTimeline.current = timeline;
       if (revealDuration) timeline.to(scroller, { scrollLeft: revealScroll, duration: revealDuration }, 0);
       timeline.to(room, {
-        x: centre.x - pivot.x - (flatSource.left + flatSource.width / 2 - pivot.x) * scale,
-        y: centre.y - pivot.y - (flatSource.top + flatSource.height / 2 - pivot.y) * scale,
-        z: 0, scale, rotationX: 0, rotationY: 0, rotation: 0,
-        transformPerspective: 1500, force3D: true, duration: cameraDuration,
+        ...cameraPose(scale, centre), duration: cameraDuration,
       }, revealDuration)
         // At this point the wall is facing the viewer. Swap identical image bounds
         // before blurring so the selected painting remains sharp throughout.
         .set(source, { opacity: 0 }, cameraEnd)
         .set(artwork.current, { autoAlpha: 1 }, cameraEnd)
-        .to(artwork.current, { ...bounds(destination), duration: 0.3 }, cameraEnd)
-        .to(image.current, { ...fullImage(destination), duration: 0.3 }, cameraEnd)
+        .to(artwork.current, { ...bounds(destination), duration: settleDuration }, settleStart)
+        .to(image.current, { ...fullImage(destination), duration: settleDuration }, settleStart)
         .to(backdrop.current, { autoAlpha: 1, duration: 0.35 }, cameraEnd)
-        .to([leftPanel.current, rightPanel.current], { xPercent: 0, autoAlpha: 1, duration: 0.7 }, cameraEnd + 0.1)
-        .to(closeButton.current, { autoAlpha: 1, duration: 0.2 }, cameraEnd + 0.25);
+        .to([leftPanel.current, rightPanel.current], { xPercent: 0, autoAlpha: 1, duration: 0.7 }, mobileDetail ? settleStart + 0.95 : cameraEnd + 0.1)
+        .to(closeButton.current, { autoAlpha: 1, duration: 0.2 }, mobileDetail ? settleStart + 0.85 : cameraEnd + 0.25);
+      if (mobileDetail) timeline.to(room, { ...cameraPose(focusScale, focusCentre), duration: settleDuration }, settleStart);
+      if (mobileDetail) timeline.set(modal, { overflowY: 'auto' });
       timeline.play(0);
     });
     return () => {
