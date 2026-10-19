@@ -527,6 +527,61 @@ function LanguageDropdown({ language, onChange, label }) {
   );
 }
 
+function IntroScreen({ header, onComplete }) {
+  const logo = useRef(null);
+  const left = useRef(null);
+  const right = useRef(null);
+  useEffect(() => {
+    let cancelled = false;
+    let readyTimer;
+    let holdTimer;
+    let animations = [];
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const start = () => {
+      if (cancelled) return;
+      if (reducedMotion) { onComplete(); return; }
+      const target = header.current?.querySelector('.header-logo');
+      if (!target) { onComplete(); return; }
+      const from = logo.current.getBoundingClientRect();
+      const to = target.getBoundingClientRect();
+      const x = to.left + to.width / 2 - from.left - from.width / 2;
+      const y = to.top + to.height / 2 - from.top - from.height / 2;
+      const options = { duration: 1400, easing: 'cubic-bezier(.22, 1, .36, 1)', fill: 'forwards' };
+      animations = [
+        left.current.animate([{ transform: 'translateX(0)' }, { transform: 'translateX(-100%)' }], options),
+        right.current.animate([{ transform: 'translateX(0)' }, { transform: 'translateX(100%)' }], options),
+        logo.current.animate([
+          { transform: 'translate(0, 0) scale(1)' },
+          { transform: `translate(${x}px, ${y}px) scale(${to.width / from.width})` },
+        ], options),
+      ];
+      Promise.all(animations.map(animation => animation.finished)).then(() => {
+        if (!cancelled) onComplete();
+      }).catch(() => {});
+    };
+    Promise.race([
+      Promise.all([logo.current.decode().catch(() => {}), document.fonts.ready]),
+      new Promise(resolve => { readyTimer = setTimeout(resolve, 2500); }),
+    ]).then(() => {
+      clearTimeout(readyTimer);
+      if (!cancelled) holdTimer = setTimeout(start, reducedMotion ? 350 : 1600);
+    });
+    return () => {
+      cancelled = true;
+      clearTimeout(readyTimer);
+      clearTimeout(holdTimer);
+      animations.forEach(animation => animation.cancel());
+    };
+  }, [header, onComplete]);
+  return (
+    <div className="intro" aria-label="Kaja Cvetko">
+      <div ref={left} className="intro-half intro-half--left" />
+      <div ref={right} className="intro-half intro-half--right" />
+      <img ref={logo} className="intro-logo" src="/kaja_logo.webp" alt="Kaja Cvetko" width="2172" height="724" />
+    </div>
+  );
+}
+
 function App() {
   const header = useRef(null);
   useLayoutEffect(() => {
@@ -561,6 +616,7 @@ function App() {
     }
   }, [language, page]);
   const [intro, setIntro] = useState(() => initialPage() === 0 ? 'visible' : 'done');
+  const finishIntro = React.useCallback(() => setIntro('done'), []);
   const navigate = (index, event) => {
     if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) return;
     event.preventDefault();
@@ -569,64 +625,9 @@ function App() {
     setPage(index);
   };
 
-  useEffect(() => {
-    if (initialPage() !== 0) return;
-    const reducedMotion = window.matchMedia(
-      '(prefers-reduced-motion: reduce)',
-    ).matches;
-    let holdTimer;
-    let removeTimer;
-    let revealTimer;
-    let cancelled = false;
-
-    // Load the background image and logo before starting the introduction.
-    const imageReady = new Promise((resolve) => {
-      const image = new Image();
-      image.onload = image.onerror = resolve;
-      image.src = '/intro.webp';
-    });
-    const logoReady = new Promise((resolve) => {
-      const logo = new Image();
-      logo.onload = logo.onerror = resolve;
-      logo.src = '/kaja_logo.webp';
-    });
-    Promise.race([
-      Promise.all([logoReady, imageReady]),
-      new Promise((resolve) => setTimeout(resolve, 2500)),
-    ]).then(() => {
-      if (cancelled) return;
-      holdTimer = setTimeout(
-        () => {
-          if (reducedMotion) {
-            setIntro('done');
-            return;
-          }
-          setIntro('leaving');
-          revealTimer = setTimeout(
-            () => {
-              setIntro('exiting');
-              removeTimer = setTimeout(
-                () => setIntro('done'),
-                2000,
-              );
-            },
-            200,
-          );
-        },
-        reducedMotion ? 350 : 1600,
-      );
-    });
-    return () => {
-      cancelled = true;
-      clearTimeout(holdTimer);
-      clearTimeout(removeTimer);
-      clearTimeout(revealTimer);
-    };
-  }, []);
-
   return (
     <LocaleContext.Provider value={{ language, t }}>
-      <div className="home" inert={intro !== 'done'}>
+      <div className={`home ${intro !== 'done' ? 'home--intro' : ''}`} inert={intro !== 'done'}>
         <header ref={header} className="site-header">
           <a
             className="brand"
@@ -643,22 +644,7 @@ function App() {
         </header>
         <PageContent page={page} introDone={intro === 'done'} />
       </div>
-      {intro !== 'done' && (
-        <div
-          className={`intro ${intro !== 'visible' ? 'intro--leaving' : ''} ${intro === 'exiting' ? 'intro--exiting' : ''}`}
-          aria-label="Kaja Cvetko"
-        >
-          <img
-            className="intro-image"
-            src="/intro.webp"
-            {...responsiveImage('/intro.webp', '100vw')}
-            alt=""
-          />
-          <div className="intro-dark">
-            <img className="intro-logo" src="/kaja_logo.webp" alt="Kaja Cvetko" width="2172" height="724" />
-          </div>
-        </div>
-      )}
+      {intro !== 'done' && <IntroScreen header={header} onComplete={finishIntro} />}
     </LocaleContext.Provider>
   );
 }

@@ -17,14 +17,12 @@ Workflow `.github/workflows/deploy.yml` ob pushu na `main` namesti odvisnosti z 
 
 Privzeti Vite `base: '/'` ustreza lastni domeni. Skript `scripts/build-pages.mjs`, ki se izvede pri `npm run build`, pripravi HTML vstopne datoteke za vse štiri strani v vseh treh jezikih. Zato neposredno odpiranje in osvežitev `/sl/o-meni/` ter drugih obstoječih poti delujeta tudi brez strežniških SPA preusmeritev. Ob dodajanju novih poti ali jezikov dopolni tudi ta skript.
 
-Ob vsakem odprtju se prikaže bel uvod s temnim podpisom v pisavi Playlist Script. Po 1,6 sekunde se bela plast skupaj s podpisom odpelje navzdol. 200 ms za njo se navzdol odpelje še slika in razkrije domačo stran. Vsak premik traja 2 sekundi. Uvod počaka na nalaganje pisave in slike (največ 2,5 sekunde). Pri zmanjšanem gibanju po 350 ms neposredno pokaže domačo stran, brez vmesnega prikaza slike in animacij.
+Ob odprtju galerije se prikaže kremni uvod z velikim logotipom na sredini. Po 1,6 sekunde se kremni polovici v 1,4 sekunde odmakneta levo in desno, logotip pa se istočasno pomanjša in premakne na dejanski položaj logotipa v headerju. Logotip v headerju je do konca prehoda skrit, zato se ne podvoji. Uvod počaka na dekodiranje logotipa in pisave (največ 2,5 sekunde); prejšnje uvodne fotografije ne uporablja. Pri zmanjšanem gibanju po 350 ms neposredno pokaže stran, brez premikov. Neposreden obisk vsebinskih podstrani uvod preskoči.
 
 Pisava: Playlist Script, Artimasa. Referenca: https://fontmeme.com/fonts/playlist-script-font/
 Lokalna WOFF2 datoteka: https://db.onlinewebfonts.com/t/1fed4454352f201d52b65ca5480afb2d.woff2
 
 Domača stran vsebuje vodoravno galerijo: na desktopu sta vidni dve vrstici s štirimi slikami (8 slik). Vseh 24 mest trenutno uporablja isto placeholder sliko z različnimi izrezi; prava Kajina dela dodamo naknadno. Kolesce miške premika galerijo vodoravno, tudi ko se kazalec nahaja nad headerjem ali footerjem. Ob robovih galerije se kazalec spremeni v črn krog z belo puščico; klik premakne galerijo v to smer. Podprte so tudi smerne tipke ob fokusu galerije in vodoravni dotik na telefonu.
-
-Placeholder uvodna slika: uporabnikova povezava Reddit (Van Gogh close-ups), lokalno v `public/images/intro-painting.jpg`.
 
 Galerija se neskončno ponavlja v obe smeri. Tri kopije slik in neopazen premik za celotno dolžino cikla ohranjajo zapolnjena oba robova in tekoče pomikanje.
 
