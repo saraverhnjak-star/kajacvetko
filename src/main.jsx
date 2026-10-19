@@ -298,6 +298,34 @@ function Gallery({ active }) {
 
   useEffect(() => {
     const element = viewport.current;
+    const track = element.firstElementChild;
+    let preloadObserver;
+    const observeNearbyColumns = () => {
+      preloadObserver?.disconnect();
+      const styles = getComputedStyle(track);
+      const columnWidth = parseFloat(styles.gridAutoColumns);
+      const gap = parseFloat(styles.columnGap) || 0;
+      const buffer = Math.ceil(2 * (columnWidth + gap));
+      // Keep two off-screen columns on either side decoded ahead of scrolling.
+      preloadObserver = new IntersectionObserver(entries => {
+        for (const entry of entries) {
+          if (!entry.isIntersecting) continue;
+          const image = entry.target;
+          image.loading = 'eager';
+          image.decode().catch(() => {});
+          preloadObserver.unobserve(image);
+        }
+      }, { root: element, rootMargin: `0px ${buffer}px`, threshold: 0 });
+      track.querySelectorAll('img').forEach(image => preloadObserver.observe(image));
+    };
+    const resizeObserver = new ResizeObserver(observeNearbyColumns);
+    resizeObserver.observe(element);
+    observeNearbyColumns();
+    return () => { resizeObserver.disconnect(); preloadObserver?.disconnect(); };
+  }, [mobile]);
+
+  useEffect(() => {
+    const element = viewport.current;
     const motionPreference = window.matchMedia('(prefers-reduced-motion: reduce)');
     let target = element.scrollLeft;
     let frame = null;
