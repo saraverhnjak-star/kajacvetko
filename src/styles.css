@@ -1140,6 +1140,7 @@ figcaption span:last-child {
     height: 100%;
     gap: 16px 20px;
     padding: 12px 6vw;
+    background-color: #f6f1e7;
   }
   .gallery-item { display: flex; align-items: center; width: auto; margin: 0; gap: 8px; min-height: 0; }
   .gallery-item[data-wall-tall='true'] { grid-row: span 2; }
@@ -1238,6 +1239,9 @@ figcaption span:last-child {
 }
 
 .mobile-menu-toggle { display: none; }
+@media (max-width: 600px) {
+  .home--detail-active .site-header { z-index: 0; }
+}
 .mobile-navigation {
   position: fixed;
   inset: 0 0 0 auto;

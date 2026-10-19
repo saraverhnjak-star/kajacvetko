@@ -264,10 +264,14 @@ function Gallery({ active }) {
   const [selection, setSelection] = useState(null);
   const detailOpen = useRef(false);
   const pendingOpen = useRef(0);
-  useEffect(() => () => { pendingOpen.current++; }, []);
+  useEffect(() => {
+    const home = viewport.current?.closest('.home');
+    return () => { pendingOpen.current++; home?.classList.remove('home--detail-active'); };
+  }, []);
   const stopScroll = useRef(() => {});
   const openPainting = async (painting, copy, event) => {
     const source = event.currentTarget;
+    source.closest('.home')?.classList.add('home--detail-active');
     source.focus({ preventScroll: true });
     const request = ++pendingOpen.current;
     stopScroll.current();
@@ -284,6 +288,7 @@ function Gallery({ active }) {
     setSelection({ painting, copy, ratio, zoom, source, rect: source.getBoundingClientRect() });
   };
   const closePainting = () => {
+    viewport.current?.closest('.home')?.classList.remove('home--detail-active');
     detailOpen.current = false;
     setSelection(null);
   };
