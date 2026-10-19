@@ -562,6 +562,36 @@ function PageContent({ page, introDone }) {
   const item = navigationPages(t)[page];
   const main = useRef(null);
   const previous = useRef(page);
+  useLayoutEffect(() => {
+    if (page === 0 || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const root = main.current;
+    const mobile = window.matchMedia('(max-width: 600px)').matches;
+    let observer;
+    const context = gsap.context(() => {
+      gsap.from(root.querySelectorAll('.content-text > .eyebrow, .content-text > h1'), {
+        opacity: 0, y: mobile ? 10 : 18, duration: 0.65, stagger: 0.08, delay: 0.18, ease: 'power2.out',
+      });
+      const portrait = root.querySelector('.about-portrait');
+      if (portrait) gsap.fromTo(portrait,
+        { clipPath: 'inset(100% 0% 0% 0%)' },
+        { clipPath: 'inset(0% 0% 0% 0%)', duration: mobile ? 0.75 : 1, delay: 0.18, ease: 'power3.inOut' });
+      const paragraphs = root.querySelectorAll('.about-biography p');
+      if (paragraphs.length) {
+        gsap.set(paragraphs, { opacity: 0, y: mobile ? 10 : 18 });
+        observer = new IntersectionObserver(entries => {
+          for (const entry of entries) {
+            if (!entry.isIntersecting) continue;
+            context.add(() => gsap.to(entry.target, { opacity: 1, y: 0, duration: 0.7, ease: 'power2.out' }));
+            observer.unobserve(entry.target);
+          }
+        }, { root, threshold: 0.12, rootMargin: '0px 0px -16px 0px' });
+        paragraphs.forEach(paragraph => observer.observe(paragraph));
+      }
+      const entries = root.querySelectorAll('.exhibition-item, .content-copy, .content-placeholder');
+      if (entries.length) gsap.from(entries, { opacity: 0, y: mobile ? 8 : 14, stagger: 0.1, duration: 0.65, delay: 0.3, ease: 'power2.out' });
+    }, root);
+    return () => { observer?.disconnect(); context.revert(); };
+  }, [page, language]);
   useEffect(() => {
     if (previous.current !== page) {
       main.current.scrollTop = 0;
@@ -738,20 +768,62 @@ function App() {
   }, []);
   const [language, setLanguage] = useState(initialLanguage);
   const [page, setPage] = useState(initialPage);
+  const transitionLayer = useRef(null);
+  const routeAnimation = useRef(null);
+  const pendingRoute = useRef(null);
+  const shownRoute = useRef({ page, language });
+  shownRoute.current = { page, language };
+  const transitionTo = React.useCallback(function transitionTo(next) {
+    const commit = target => {
+      if (target.push && location.pathname !== pagePath(target.language, target.page)) {
+        window.history.pushState(null, '', `${pagePath(target.language, target.page)}${location.search}`);
+      }
+      flushSync(() => { setLanguage(target.language); setPage(target.page); });
+    };
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      routeAnimation.current?.kill();
+      routeAnimation.current = null;
+      pendingRoute.current = null;
+      gsap.set(transitionLayer.current, { x: 0, y: 0, yPercent: 100, autoAlpha: 0 });
+      commit(next);
+      return;
+    }
+    if (routeAnimation.current) { pendingRoute.current = next; return; }
+    if (next.page === shownRoute.current.page && next.language === shownRoute.current.language) return;
+    pendingRoute.current = next;
+    const layer = transitionLayer.current;
+    routeAnimation.current = gsap.timeline({
+      onComplete: () => {
+        routeAnimation.current = null;
+        const queued = pendingRoute.current;
+        pendingRoute.current = null;
+        if (queued) transitionTo(queued);
+      },
+    })
+      .set(layer, { x: 0, y: 0, yPercent: 100, autoAlpha: 1 })
+      .to(layer, { yPercent: 0, duration: 1.1, ease: 'power3.inOut' })
+      .call(() => {
+        const target = pendingRoute.current;
+        pendingRoute.current = null;
+        if (target) commit(target);
+      })
+      .to(layer, { yPercent: -100, duration: 1.3, ease: 'power3.inOut' })
+      .set(layer, { autoAlpha: 0, yPercent: 100 });
+  }, []);
+  useEffect(() => () => { routeAnimation.current?.kill(); }, []);
   const [headerScrolled, setHeaderScrolled] = useState(false);
   useEffect(() => { setHeaderScrolled(false); }, [page]);
   const t = translator(language);
   const pages = navigationPages(t);
   const changeLanguage = (nextLanguage) => {
     if (!languages.includes(nextLanguage)) return;
-    setLanguage(nextLanguage);
-    window.history.pushState(null, '', `${pagePath(nextLanguage, page)}${location.search}`);
+    transitionTo({ page, language: nextLanguage, push: true });
   };
   useEffect(() => {
-    const syncLanguage = () => { setLanguage(initialLanguage()); setPage(initialPage()); };
+    const syncLanguage = () => transitionTo({ page: initialPage(), language: initialLanguage(), push: false });
     window.addEventListener('popstate', syncLanguage);
     return () => window.removeEventListener('popstate', syncLanguage);
-  }, []);
+  }, [transitionTo]);
   useEffect(() => {
     document.documentElement.lang = language;
     document.title = page === 0 ? translator(language)('pageTitle') : `${navigationPages(translator(language))[page].title} — Kaja Cvetko`;
@@ -766,9 +838,8 @@ function App() {
   const navigate = (index, event) => {
     if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) return;
     event.preventDefault();
-    if (index === page) return;
-    window.history.pushState(null, '', pagePath(language, index));
-    setPage(index);
+    if (index === page && !routeAnimation.current) return;
+    transitionTo({ page: index, language, push: true });
   };
 
   return (
@@ -781,9 +852,6 @@ function App() {
           }
         }}>
         <header ref={header} className={`site-header ${headerScrolled ? 'site-header--scrolled' : ''}`}>
-          <nav className="header-nav header-nav--left" aria-label={t('navigation')}>
-            {pages.slice(1, 3).map((item, index) => <a key={item.id} href={pagePath(language, index + 1)} onClick={(event) => navigate(index + 1, event)} aria-current={page === index + 1 ? 'page' : undefined}>{item.title}</a>)}
-          </nav>
           <a
             className="brand"
             href={pagePath(language, 0)}
@@ -793,12 +861,13 @@ function App() {
             <img className="header-logo" src="/kaja_logo.webp" alt="Kaja Cvetko" width="2172" height="724" />
           </a>
           <nav className="header-nav header-nav--right" aria-label={t('navigation')}>
-            <a href={pagePath(language, 3)} onClick={(event) => navigate(3, event)} aria-current={page === 3 ? 'page' : undefined}>{pages[3].title}</a>
+            {pages.map((item, index) => <a key={item.id} href={pagePath(language, index)} onClick={(event) => navigate(index, event)} aria-current={page === index ? 'page' : undefined}>{item.title}</a>)}
             <LanguageDropdown language={language} onChange={changeLanguage} label={t('language')} />
           </nav>
         </header>
         <PageContent page={page} introDone={intro === 'done'} />
       </div>
+      <div ref={transitionLayer} className="page-transition" aria-hidden="true" />
       {intro !== 'done' && <IntroScreen header={header} onComplete={finishIntro} />}
     </LocaleContext.Provider>
   );

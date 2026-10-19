@@ -70,3 +70,7 @@ Krožni kazalec galerije je enotno črn z belim napisom »Detajli« (DE/EN: »De
 ## Prehod s kamero v detajle
 
 GSAP ob izbiri dela najprej poravna in premakne celotno galerijsko steno proti sliki. Ko se pogled ustavi, ostra slika ostane nad zamegljeno galerijo, z leve in desne pa se pojavijo dodatne fotografije in opis. Zameglitev je blažja na telefonu. Zapiranje obrne isto časovnico; pred povratkom se ponovno pokaže originalna fotografija. Kontekst GSAP ob odstranitvi detajla povrne prvotne sloge stene. Pri zmanjšanem gibanju se detajli odprejo neposredno.
+
+## Prehodi med stranmi
+
+GSAP ob navigaciji in menjavi jezika stran najprej prekrije s kremno plastjo, pod njo zamenja vsebino ter plast umakne navzgor. Podprta sta tudi gumba Nazaj/Naprej; zaporedni kliki v meniju upoštevajo zadnjo izbiro. Na strani O meni se portret razkrije skozi masko, odstavki biografije pa ob vstopu v vidni del notranjega drsnega območja. Naslovi, razstave in kontaktna vsebina imajo kratek vstopni prehod. Pri zmanjšanem gibanju so prehodi izklopljeni.
