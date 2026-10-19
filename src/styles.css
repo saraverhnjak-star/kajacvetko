@@ -878,7 +878,7 @@ figcaption span:last-child {
   .gallery {
     --gap: clamp(28px, 3.4vw, 64px);
     isolation: isolate;
-    background: linear-gradient(180deg, #e9e6df 0%, #f0ede6 62%, #ded8cd 100%);
+    background: transparent;
   }
   .gallery-room {
     transform-origin: right 45%;
@@ -909,9 +909,7 @@ figcaption span:last-child {
     width: 100%;
     height: 82%;
     top: 4%;
-    background:
-      radial-gradient(ellipse at 28% 0%, #fffdf84d 0%, transparent 65%),
-      linear-gradient(90deg, #f5f2eb1a, #6f66551f);
+    background: transparent;
     border-bottom: 3px solid #d1cabe;
     box-shadow:
       inset 34px 0 48px -30px #544c3f26,
@@ -923,7 +921,7 @@ figcaption span:last-child {
     grid-auto-columns: calc((100vw - 4 * var(--gap)) / 4);
     row-gap: clamp(26px, 4vh, 48px);
     padding-block: clamp(24px, 4vh, 48px);
-    background: linear-gradient(180deg, #fffdf833, #6f665514);
+    background: transparent;
   }
   .gallery-item {
     align-items: center;
@@ -961,17 +959,12 @@ figcaption span:last-child {
 }
 @media (max-width: 600px) {
   .gallery {
-    background: #f3efe7;
+    background: transparent;
   }
   .gallery-track {
     gap: 48px;
     padding-block: 26px 40px;
-    background:
-      linear-gradient(90deg, #eae6dd33, #f8f5ee1a 40%, #eee9df33),
-      url('/images/gallery-wall.jpg') repeat;
-    background-size:
-      auto,
-      370px 370px;
+    background: transparent;
   }
   .gallery .painting-frame {
     box-shadow:
@@ -1111,4 +1104,67 @@ figcaption span:last-child {
 }
 @media (prefers-reduced-motion: reduce) {
   .site-header { transition: none; }
+}
+
+/* Mobile exhibition: horizontal and vertical gestures follow the gallery wall. */
+@media (max-width: 600px) {
+  .gallery { --gap: 20px; isolation: isolate; }
+  .gallery-room {
+    top: calc(var(--header-height) + 12px);
+    height: calc(100% - var(--header-height) - 24px);
+    transform-origin: right 45%;
+    transform: perspective(1000px) translateZ(-80px) rotateY(8deg);
+    transform-style: preserve-3d;
+  }
+  .gallery-room::before {
+    content: '';
+    position: absolute;
+    top: 95%;
+    left: -400px;
+    width: calc(100% + 800px);
+    height: 100%;
+    pointer-events: none;
+    background: linear-gradient(180deg, #514b4226, transparent 25%), url('/images/gallery-floor-microcement.webp') repeat;
+    background-size: auto, 400px 400px;
+    transform-origin: center top;
+    transform: rotateX(90deg) translate3d(var(--floor-offset, 0px), 0, 0);
+    will-change: transform;
+    box-shadow: inset 20px 15px 100px 18px #777571;
+  }
+  .gallery-viewport {
+    position: relative;
+    top: 2%;
+    height: 88%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    touch-action: pinch-zoom;
+    overscroll-behavior: contain;
+    border-bottom: 0;
+  }
+  .gallery-track {
+    display: grid;
+    grid-template-rows: repeat(3, minmax(0, 1fr));
+    grid-auto-flow: column;
+    grid-auto-columns: 72vw;
+    columns: auto;
+    width: max-content;
+    height: 100%;
+    gap: 16px 20px;
+    padding: 12px 6vw;
+  }
+  .gallery-item { display: flex; align-items: center; width: auto; margin: 0; gap: 8px; min-height: 0; }
+  .gallery-item[data-wall-tall='true'] { grid-row: span 2; }
+  .gallery .painting-frame {
+    flex: none;
+    width: auto;
+    max-width: 100%;
+    height: calc(100% - 28px);
+    aspect-ratio: var(--artwork-ratio, 1);
+    background: transparent;
+    box-shadow: 2px 2px 0 #8a7b66, 5px 7px 10px -2px #40372c30;
+  }
+  .gallery .painting-frame img { width: 100%; height: 100%; object-fit: cover; }
+  .gallery figcaption { width: 100%; justify-content: center; text-align: center; gap: 8px; font-size: 10px; margin-top: 0; line-height: 1.4; }
+  .gallery figcaption span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .gallery figcaption span:last-child { flex-shrink: 0; }
 }

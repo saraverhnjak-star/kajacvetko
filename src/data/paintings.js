@@ -29,7 +29,9 @@ export const paintings = [
         "description": "An expansive yellow field meets denser green marks and small blue accents along the lower edge. The transition from open light to lively texture suggests a meadow dissolving into sunshine.",
         "alt": "Yellow abstraction with green texture along the lower edge and small blue accents."
       }
-    }
+    },
+    "width": 1724,
+    "height": 1672
   },
   {
     "id": "slika-02",
@@ -55,7 +57,9 @@ export const paintings = [
         "description": "A dark band of broken marks stretches across a reddish-brown ground, interrupted by yellow and orange glints. Dense paint at the centre suggests a distant horizon still holding its warmth.",
         "alt": "Reddish-brown abstraction with a dark central band and yellow and orange marks."
       }
-    }
+    },
+    "width": 2400,
+    "height": 2376
   },
   {
     "id": "slika-03",
@@ -83,7 +87,9 @@ export const paintings = [
         "description": "Slanting yellow-green strokes rise across a dark field towards a grey mass edged with turbulent white. A muted pink sky opens above it, creating tension between the ground and the clouds.",
         "alt": "Slanting yellow-green strokes beneath grey-white clouds and a pink sky."
       }
-    }
+    },
+    "width": 2400,
+    "height": 1731
   },
   {
     "id": "deroci-potok",
@@ -115,7 +121,9 @@ export const paintings = [
         "alt": "Painting of a rushing stream in green and turquoise tones with white highlights of foam."
       }
     },
-    "year": 2021
+    "year": 2021,
+    "width": 2400,
+    "height": 1787
   },
   {
     "id": "slika-05",
@@ -140,7 +148,9 @@ export const paintings = [
         "description": "Glowing orange and red fill the narrow vertical format, giving way to dark layers towards the bottom. A small yellow-green patch at the lower edge feels like an opening of light within the dense colour.",
         "alt": "Tall narrow abstraction in orange and red, with a dark lower section and a yellow-green accent."
       }
-    }
+    },
+    "width": 781,
+    "height": 2400
   },
   {
     "id": "slika-06",
@@ -167,7 +177,9 @@ export const paintings = [
         "description": "Dark forms resembling a city skyline stand against a glowing yellow, orange and pink sky. The violet-blue surface below echoes their outlines in elongated reflections.",
         "alt": "Dark city silhouette beneath a yellow-orange sky, with violet-blue reflections below."
       }
-    }
+    },
+    "width": 2048,
+    "height": 1726
   },
   {
     "id": "slika-07",
@@ -191,7 +203,9 @@ export const paintings = [
         "description": "A branching band of intense blue spreads across a quiet reddish-brown ground. Broken edges and dark traces contrast the earthy warmth of the background with the vivid blue accents.",
         "alt": "Branching cobalt-blue and dark texture across the lower part of a reddish-brown field."
       }
-    }
+    },
+    "width": 1822,
+    "height": 1446
   },
   {
     "id": "slika-08",
@@ -218,7 +232,9 @@ export const paintings = [
         "description": "Intense blue gathers along a horizontal band above a darker, quiet surface. Grey-brown and pale marks in the foreground suggest reflections along a shore, while the upper area dissolves into cool light.",
         "alt": "Blue horizon above a dark horizontal surface with grey-brown and white foreground marks."
       }
-    }
+    },
+    "width": 2284,
+    "height": 1764
   },
   {
     "id": "slika-09",
@@ -246,7 +262,9 @@ export const paintings = [
         "description": "Horizontal layers of green, blue and red are crossed by fine vertical trails of colour. Their interplay suggests a water surface where bands of colour reflect, spread and lose their clear boundaries.",
         "alt": "Green, red and blue horizontal bands crossed by numerous fine vertical paint trails."
       }
-    }
+    },
+    "width": 2400,
+    "height": 1434
   },
   {
     "id": "slika-10",
@@ -273,7 +291,9 @@ export const paintings = [
         "description": "Rust and ochre tones rise softly into a pale grey-blue field. Blurred outlines suggest autumn trees in mist, while horizontal marks below lend the scene a sense of calm.",
         "alt": "Soft rusty orange and ochre forms beneath a pale grey-blue upper area."
       }
-    }
+    },
+    "width": 1614,
+    "height": 1606
   },
   {
     "id": "slika-11",
@@ -301,7 +321,9 @@ export const paintings = [
         "description": "Thick, raised strokes of pink, red and yellow weave across a dark blue-green ground. Their curling, lifted forms give the narrow composition a lively rhythm reminiscent of flickering flames.",
         "alt": "Narrow abstraction with thick pink, red and yellow strokes over a dark blue-green ground."
       }
-    }
+    },
+    "width": 1109,
+    "height": 2400
   },
   {
     "id": "slika-12",
@@ -327,7 +349,9 @@ export const paintings = [
         "description": "Pale cream and grey layers merge into an expanse of blue. Vertical traces and broad horizontal strokes build a translucent surface where forms briefly appear before blurring again.",
         "alt": "Blue and creamy-white abstraction with overlapping horizontal and vertical marks."
       }
-    }
+    },
+    "width": 2170,
+    "height": 1534
   },
   {
     "id": "slika-13",
@@ -355,7 +379,9 @@ export const paintings = [
         "description": "Dark horizontal strokes ripple through crimson and muted pink layers. Scattered cool blue accents interrupt the warm colour field and draw the eye into its depth.",
         "alt": "Crimson and pink abstraction with dark horizontal strokes and scattered blue accents."
       }
-    }
+    },
+    "width": 1494,
+    "height": 1508
   },
   {
     "id": "slika-14",
@@ -384,7 +410,9 @@ export const paintings = [
         "description": "An unsettled grey-blue field hangs above a reddish-brown lower area. A dark, broken band with blue accents and vertical trails connects the two, suggesting a landscape beneath a heavy sky.",
         "alt": "Grey-blue upper field above a reddish-brown lower area, joined by a dark band with blue accents."
       }
-    }
+    },
+    "width": 1712,
+    "height": 1750
   },
   {
     "id": "slika-15",
@@ -411,7 +439,9 @@ export const paintings = [
         "description": "Cool blue on the left gradually passes through violet and pink into warm yellow light on the right. Long vertical traces soften the boundaries between colours and give the surface a sense of slow movement.",
         "alt": "Colour transition from dark blue on the left through violet and pink to pale yellow on the right."
       }
-    }
+    },
+    "width": 2078,
+    "height": 1648
   },
   {
     "id": "slika-16",
@@ -438,7 +468,9 @@ export const paintings = [
         "description": "Blue-violet layers descend towards a darker lower area, where a band of pink and red light opens out. Blurred vertical traces and overlapping patches of colour suggest a landscape as daylight fades.",
         "alt": "Blue-violet abstraction with a brighter pink-red band across the lower half."
       }
-    }
+    },
+    "width": 1802,
+    "height": 1248
   },
   {
     "id": "slika-17",
@@ -462,7 +494,9 @@ export const paintings = [
         "description": "An intense orange-red surface meets pale pink and grey-white layers along a diagonal. Blue-violet traces at the upper edge introduce a cooler accent and balance the glow of the lower area.",
         "alt": "Orange-red field transitioning diagonally into pale pink and grey-white, with blue-violet traces above."
       }
-    }
+    },
+    "width": 2400,
+    "height": 1845
   },
   {
     "id": "slika-18",
@@ -490,7 +524,9 @@ export const paintings = [
         "description": "Elongated pale strokes rise through muted grey, brown and pink layers. Dark blue-violet accents between them create depth, while blurred edges preserve a sense of softness and stillness.",
         "alt": "Grey, brown and pink vertical layers with elongated pale strokes and dark blue-violet accents."
       }
-    }
+    },
+    "width": 1516,
+    "height": 1562
   },
   {
     "id": "slika-19",
@@ -520,6 +556,8 @@ export const paintings = [
         "description": "A blue-grey veil surrounds muted pink, violet and earthy layers. Soft horizontal traces below gradually disappear into the darker upper surface, suggesting a distant scene on the verge of dissolving.",
         "alt": "Misty blue-grey abstraction with muted pink, violet and brown horizontal layers."
       }
-    }
+    },
+    "width": 2012,
+    "height": 1628
   }
 ];

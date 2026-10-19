@@ -142,10 +142,22 @@ function Gallery({ active }) {
     return () => query.removeEventListener('change', update);
   }, []);
   const galleryPaintings = paintings.map(painting => ({ ...painting, ...localizedContent(painting, language) }));
-  // An odd number of works needs two passes to preserve the two-row pattern.
-  const cycleLength = paintings.length * (paintings.length % 2 ? 2 : 1);
-  const copies = mobile ? [1] : paintings.length % 2 ? [0, 1, 2, 3, 4, 5] : [0, 1, 2];
-  const accessibleCopy = mobile || paintings.length % 2 === 0 ? 1 : 2;
+  // Explicit mobile columns keep the three-row pattern identical across loop boundaries.
+  let mobileColumn = 1;
+  let mobileRow = 1;
+  const mobileLayout = paintings.map(painting => {
+    const span = painting.galleryRows === 2 ? 2 : 1;
+    if (mobileRow + span > 4) { mobileColumn++; mobileRow = 1; }
+    const placement = { column: mobileColumn, row: mobileRow, span };
+    mobileRow += span;
+    if (mobileRow > 3) { mobileColumn++; mobileRow = 1; }
+    return placement;
+  });
+  const mobileColumns = mobileColumn - (mobileRow === 1 ? 1 : 0);
+  const doubleDesktopCycle = !mobile && paintings.length % 2 !== 0;
+  const cycleLength = paintings.length * (doubleDesktopCycle ? 2 : 1);
+  const copies = doubleDesktopCycle ? [0, 1, 2, 3, 4, 5] : [0, 1, 2];
+  const accessibleCopy = doubleDesktopCycle ? 2 : 1;
   const activeRef = useRef(active);
   activeRef.current = active;
   const viewport = useRef(null);
@@ -179,10 +191,6 @@ function Gallery({ active }) {
 
   useEffect(() => {
     const element = viewport.current;
-    if (mobile) {
-      element.scrollLeft = 0;
-      return;
-    }
     const motionPreference = window.matchMedia('(prefers-reduced-motion: reduce)');
     let target = element.scrollLeft;
     let frame = null;
@@ -258,15 +266,54 @@ function Gallery({ active }) {
       }
     };
     const onWheel = (event) => {
-      if (!activeRef.current || detailOpen.current || event.ctrlKey || !window.matchMedia('(pointer: fine)').matches) return;
+      if (!activeRef.current || detailOpen.current || event.ctrlKey) return;
       const delta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
       if (!delta) return;
       event.preventDefault();
       const unit = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? element.clientWidth : 1;
       scrollBy.current(delta * unit * 0.65);
     };
+    let gesture = null;
+    let suppressClick = false;
+    const onTouchStart = (event) => {
+      if (!mobile || event.pointerType !== 'touch') return;
+      suppressClick = false;
+      if (!event.isPrimary || !activeRef.current || detailOpen.current) {
+        gesture = null;
+        return;
+      }
+      gesture = { id: event.pointerId, x: event.clientX, y: event.clientY, axis: null };
+    };
+    const onTouchMove = (event) => {
+      if (!gesture || gesture.id !== event.pointerId || detailOpen.current) return;
+      const dx = gesture.x - event.clientX;
+      const dy = gesture.y - event.clientY;
+      if (!gesture.axis) {
+        if (Math.hypot(dx, dy) < 8) return;
+        gesture.axis = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y';
+        element.setPointerCapture(event.pointerId);
+      }
+      suppressClick = true;
+      scrollBy.current(gesture.axis === 'x' ? dx : dy, 70);
+      gesture.x = event.clientX;
+      gesture.y = event.clientY;
+    };
+    const endTouch = (event) => {
+      if (gesture?.id === event.pointerId) gesture = null;
+    };
+    const preventDragClick = (event) => {
+      if (!suppressClick || event.detail === 0) return;
+      event.preventDefault();
+      event.stopPropagation();
+      suppressClick = false;
+    };
     window.addEventListener('wheel', onWheel, { passive: false });
     element.addEventListener('pointerdown', stop);
+    element.addEventListener('pointerdown', onTouchStart);
+    element.addEventListener('pointermove', onTouchMove);
+    element.addEventListener('pointerup', endTouch);
+    element.addEventListener('pointercancel', endTouch);
+    element.addEventListener('click', preventDragClick, true);
     element.addEventListener('scroll', wrap);
     return () => {
       stop();
@@ -276,6 +323,11 @@ function Gallery({ active }) {
       room.style.removeProperty('--floor-offset');
       window.removeEventListener('wheel', onWheel);
       element.removeEventListener('pointerdown', stop);
+      element.removeEventListener('pointerdown', onTouchStart);
+      element.removeEventListener('pointermove', onTouchMove);
+      element.removeEventListener('pointerup', endTouch);
+      element.removeEventListener('pointercancel', endTouch);
+      element.removeEventListener('click', preventDragClick, true);
       element.removeEventListener('scroll', wrap);
     };
   }, [mobile]);
@@ -285,21 +337,25 @@ function Gallery({ active }) {
       <div className="gallery-room">
       <div className="gallery-viewport" ref={viewport} tabIndex={0}
         onKeyDown={(event) => {
-          if (!mobile && (event.key === 'ArrowRight' || event.key === 'ArrowLeft')) {
+          if (event.key === 'ArrowRight' || event.key === 'ArrowLeft') {
             event.preventDefault();
             move(event.key === 'ArrowRight' ? 1 : -1);
           }
         }}>
         <div className="gallery-track">
           {copies.flatMap((copy) => galleryPaintings.map((painting, paintingIndex) => (
-            <figure className="gallery-item" data-wall-tall={painting.galleryRows === 2} key={`${copy}-${painting.id}`} aria-hidden={copy !== accessibleCopy ? true : undefined}>
+            <figure className="gallery-item" data-wall-tall={painting.galleryRows === 2} key={`${copy}-${painting.id}`} aria-hidden={copy !== accessibleCopy ? true : undefined}
+              style={mobile ? {
+                gridColumn: copy * mobileColumns + mobileLayout[paintingIndex].column,
+                gridRow: `${mobileLayout[paintingIndex].row} / span ${mobileLayout[paintingIndex].span}`,
+              } : undefined}>
               <button className="painting-frame" data-selected={selection?.painting.id === painting.id && selection.copy === copy} data-hovered={hovered?.id === painting.id && !selection} aria-label={t('openPainting', { title: painting.title })} tabIndex={copy === accessibleCopy ? 0 : -1}
                 onPointerEnter={(event) => {
                   if (event.pointerType === 'mouse') { setHovered(painting); followCursor(event); }
                 }}
                 onPointerMove={(event) => { followCursor(event); if (event.pointerType === 'mouse' && !detailOpen.current) setHovered(painting); }} onPointerLeave={() => setHovered(null)}
                 onClick={(event) => openPainting(painting, copy, event)}>
-                <img src={painting.image} {...responsiveImage(painting.image, '(max-width: 600px) 88vw, 25vw')} loading={copy === accessibleCopy && paintingIndex < (mobile ? 2 : 10) ? 'eager' : 'lazy'} decoding="async" alt={painting.alt}
+                <img src={painting.image} width={painting.width} height={painting.height} {...responsiveImage(painting.image, '(max-width: 600px) 72vw, 25vw')} loading={copy === accessibleCopy && paintingIndex < (mobile ? 4 : 10) ? 'eager' : 'lazy'} decoding="async" alt={painting.alt}
                   onLoad={(event) => {
                     const image = event.currentTarget;
                     const ratio = image.naturalWidth / image.naturalHeight;
@@ -635,7 +691,7 @@ function App() {
         onScrollCapture={(event) => {
           const scroller = event.target;
           if (scroller instanceof HTMLElement && scroller.matches('.gallery-viewport, .route-content')) {
-            setHeaderScrolled(scroller.scrollTop > 8);
+            setHeaderScrolled(scroller.scrollTop > 8 || scroller.scrollLeft > 8);
           }
         }}>
         <header ref={header} className={`site-header ${headerScrolled ? 'site-header--scrolled' : ''}`}>
