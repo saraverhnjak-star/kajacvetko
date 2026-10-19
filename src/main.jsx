@@ -636,6 +636,7 @@ function PageContent({ page, introDone }) {
 }
 
 function LanguageDropdown({ language, onChange, label }) {
+  const menuId = React.useId();
   const [open, setOpen] = useState(false);
   const root = useRef(null);
   const trigger = useRef(null);
@@ -656,7 +657,7 @@ function LanguageDropdown({ language, onChange, label }) {
   }, [open]);
   return (
     <div className="language-dropdown" ref={root} onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) close(); }}>
-      <button className="language-trigger" ref={trigger} type="button" aria-label={`${label}: ${names[language]}`} aria-haspopup="menu" aria-expanded={open} aria-controls="language-menu"
+      <button className="language-trigger" ref={trigger} type="button" aria-label={`${label}: ${names[language]}`} aria-haspopup="menu" aria-expanded={open} aria-controls={menuId}
         onClick={() => open ? close(true) : show(languages.indexOf(language))}
         onKeyDown={(event) => {
           if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
@@ -665,7 +666,7 @@ function LanguageDropdown({ language, onChange, label }) {
         }}>
         {language.toUpperCase()}<svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4" /></svg>
       </button>
-      {open && <div className="language-menu" id="language-menu" role="menu" aria-label={label}
+      {open && <div className="language-menu" id={menuId} role="menu" aria-label={label}
         onKeyDown={(event) => {
           const index = options.current.indexOf(document.activeElement);
           let next;
@@ -741,6 +742,20 @@ function IntroScreen({ header, onComplete }) {
 }
 
 function App() {
+  const mobileMenu = useRef(null);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuLabels = {
+    sl: { open: 'Odpri meni', close: 'Zapri meni' },
+    de: { open: 'Menü öffnen', close: 'Menü schließen' },
+    en: { open: 'Open menu', close: 'Close menu' },
+  };
+  const closeMenu = () => { mobileMenu.current?.close(); setMenuOpen(false); };
+  useEffect(() => {
+    const query = window.matchMedia('(max-width: 600px)');
+    const onResize = () => { if (!query.matches) closeMenu(); };
+    query.addEventListener('change', onResize);
+    return () => query.removeEventListener('change', onResize);
+  }, []);
   useEffect(() => {
     const root = document.documentElement;
     const onPointer = event => { root.dataset.inputMethod = event.pointerType === 'touch' ? 'touch' : 'pointer'; };
@@ -864,7 +879,21 @@ function App() {
             {pages.map((item, index) => <a key={item.id} href={pagePath(language, index)} onClick={(event) => navigate(index, event)} aria-current={page === index ? 'page' : undefined}>{item.title}</a>)}
             <LanguageDropdown language={language} onChange={changeLanguage} label={t('language')} />
           </nav>
+          <button className="mobile-menu-toggle" type="button" aria-label={menuLabels[language].open} aria-expanded={menuOpen} aria-controls="mobile-navigation" onClick={() => { mobileMenu.current.showModal(); setMenuOpen(true); }}>
+            <span /><span /><span />
+          </button>
         </header>
+        <dialog ref={mobileMenu} id="mobile-navigation" className="mobile-navigation" aria-label={t('navigation')} onClose={() => setMenuOpen(false)} onClick={event => {
+          if (event.target !== event.currentTarget) return;
+          const rect = event.currentTarget.getBoundingClientRect();
+          if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) closeMenu();
+        }}>
+          <button className="mobile-menu-close" type="button" aria-label={menuLabels[language].close} onClick={closeMenu}>×</button>
+          <nav className="mobile-menu-links" aria-label={t('navigation')}>
+            {pages.map((item, index) => <a key={item.id} href={pagePath(language, index)} onClick={event => { if (!event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey && event.button === 0) closeMenu(); navigate(index, event); }} aria-current={page === index ? 'page' : undefined}>{item.title}</a>)}
+          </nav>
+          <LanguageDropdown language={language} onChange={code => { closeMenu(); changeLanguage(code); }} label={t('language')} />
+        </dialog>
         <PageContent page={page} introDone={intro === 'done'} />
       </div>
       <div ref={transitionLayer} className="page-transition" aria-hidden="true" />
