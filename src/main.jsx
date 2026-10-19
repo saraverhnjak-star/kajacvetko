@@ -643,7 +643,7 @@ function PageContent({ page, introDone }) {
   return (
     <main ref={main} className={`route-content ${page === 0 ? 'route-content--gallery' : `route-content--${item.id}`}`} aria-label={t('portfolioLabel')}>
       {page === 0 ? <Gallery active={introDone} /> : (
-            <section className={`content-section ${item.id === 'o-meni' ? 'about-section' : ''}`} aria-labelledby={`${item.id}-title`}>
+            <section className={`content-section ${item.id === 'o-meni' ? 'about-section' : item.id === 'razstave' ? 'exhibitions-section' : ''}`} aria-labelledby={`${item.id}-title`}>
               {item.id === 'o-meni' && (
                 <div className="about-portrait-sticky">
                   <img className="about-portrait" src="/images/kaja_profil.webp" {...responsiveImage('/images/kaja_profil.webp', '(max-width: 700px) 360px, 42vw')} decoding="async" alt={t('portraitAlt')} width="1365" height="1365" />
@@ -654,12 +654,19 @@ function PageContent({ page, introDone }) {
               <h1 id={`${item.id}-title`} className="signature" tabIndex={-1}>{item.title}</h1>
               {item.id === 'razstave' ? (
                 <ul className="exhibition-list">
-                  {exhibitions.map(exhibition => (
-                    <li key={exhibition.id} className="exhibition-item">
-                      <span className="exhibition-year">{exhibition.year}</span>
-                      <div><h2>{localizedContent(exhibition, language).title}</h2><p>{localizedContent(exhibition, language).city ?? exhibition.city}</p></div>
-                    </li>
-                  ))}
+                  {exhibitions.map(exhibition => {
+                    const content = localizedContent(exhibition, language);
+                    return (
+                      <li key={exhibition.id} className="exhibition-item">
+                        <span className="exhibition-year">{exhibition.year}</span>
+                        <div>
+                          <h2>{content.title}</h2>
+                          <p>{content.description}</p>
+                          <p className="exhibition-venue">{content.venue}</p>
+                        </div>
+                      </li>
+                    );
+                  })}
                 </ul>
               ) : (
                 <>
@@ -670,6 +677,11 @@ function PageContent({ page, introDone }) {
                 </>
               )}
               </div>
+              {item.id === 'razstave' && (
+                <div className="exhibitions-photo-sticky">
+                  <img className="exhibitions-photo" src="/images/exhibit.jpg" alt={t('exhibitionsPhotoAlt')} loading="lazy" decoding="async" />
+                </div>
+              )}
             </section>
       )}
     </main>

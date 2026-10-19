@@ -891,7 +891,7 @@ figcaption span:last-child {
     position: absolute;
     top: 86%;
     left: -400px;
-    width: calc(100% + 800px);
+    width: calc(300% + 2400px);
     height: 100%;
     pointer-events: none;
     background:
@@ -1085,7 +1085,7 @@ figcaption span:last-child {
     z-index: 4;
     top: calc(12px + env(safe-area-inset-top));
     right: 4vw;
-    background: #f6f1e7;
+    background: transparent;
   }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -1295,4 +1295,36 @@ figcaption span:last-child {
 }
 @media (prefers-reduced-motion: reduce) {
   .mobile-navigation[open] { animation: none; }
+}
+
+.route-content--razstave { container-type: size; }
+.exhibitions-section {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+  align-items: start;
+  gap: clamp(32px, 5vw, 80px);
+  padding-inline: 8vw;
+}
+.exhibitions-section .content-text { min-width: 0; }
+.exhibitions-section .exhibition-list { width: 100%; }
+.exhibitions-photo-sticky {
+  position: sticky;
+  top: 40px;
+  height: calc(100cqh - 80px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.exhibitions-photo {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: min(64svh, 100%);
+  object-fit: contain;
+}
+@media (max-width: 700px) {
+  .route-content--razstave { container-type: normal; }
+  .exhibitions-section { grid-template-columns: 1fr; }
+  .exhibitions-photo-sticky { position: static; height: auto; }
+  .exhibitions-photo { max-height: none; }
 }
