@@ -885,7 +885,7 @@ function App() {
       routeAnimation.current?.kill();
       routeAnimation.current = null;
       pendingRoute.current = null;
-      gsap.set(transitionLayer.current, { x: 0, y: 0, yPercent: 100, autoAlpha: 0 });
+      gsap.set(transitionLayer.current, { autoAlpha: 0, '--page-blur': '0px', backgroundColor: 'rgba(247, 242, 232, 0)' });
       commit(next);
       return;
     }
@@ -901,15 +901,16 @@ function App() {
         if (queued) transitionTo(queued);
       },
     })
-      .set(layer, { x: 0, y: 0, yPercent: 100, autoAlpha: 1 })
-      .to(layer, { yPercent: 0, duration: 1.1, ease: 'power3.inOut' })
+      .set(layer, { autoAlpha: 1, '--page-blur': '0px', backgroundColor: 'rgba(247, 242, 232, 0)' })
+      .to(layer, { '--page-blur': '12px', duration: 0.75, ease: 'power2.inOut' }, 0)
+      .to(layer, { backgroundColor: 'rgba(247, 242, 232, 1)', duration: 1.1, ease: 'power2.in' }, 0.15)
       .call(() => {
         const target = pendingRoute.current;
         pendingRoute.current = null;
         if (target) commit(target);
       })
-      .to(layer, { yPercent: -100, duration: 1.3, ease: 'power3.inOut' })
-      .set(layer, { autoAlpha: 0, yPercent: 100 });
+      .to(layer, { backgroundColor: 'rgba(247, 242, 232, 0)', '--page-blur': '0px', duration: 0.95, ease: 'power2.out' })
+      .set(layer, { autoAlpha: 0 });
   }, []);
   useEffect(() => () => { routeAnimation.current?.kill(); }, []);
   const [headerScrolled, setHeaderScrolled] = useState(false);
